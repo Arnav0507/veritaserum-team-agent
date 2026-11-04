@@ -1,0 +1,284 @@
+import json
+import time
+import secrets
+
+from .policy import FACTS, RUNBOOK, ACTIONS, assess, statement, simulate, verify
+from .providers import ReferenceProvider, ProviderError
+from .store import check_password, password_hash, token_hash, identifier, event
+
+
+class Fault(Exception):
+    def __init__(self, status, message):
+        self.status, self.message = status, message
+        super().__init__(message)
+
+
+def member(db, room, actor, roles=None):
+    row = db.execute("SELECT * FROM members WHERE room=? AND user=? AND active=1", (room, actor)).fetchone()
+    if not row:
+        raise Fault(403, "Room access denied")
+    if roles is not None and row["role"] not in roles:
+        raise Fault(403, "Your role cannot perform this action")
+    return dict(row)
+
+
+def active_claims(db, room):
+    return [dict(row) for row in db.execute(
+        "SELECT id,owner,key,value,created FROM disclosures WHERE room=? AND active=1 ORDER BY created,id", (room,))]
+
+
+class Service:
+    def __init__(self, store, private_provider=None, shared_provider=None):
+        self.store = store
+        self.private_provider = private_provider or ReferenceProvider()
+        self.shared_provider = shared_provider or ReferenceProvider()
+        self.dummy_password = password_hash("nonexistent-account")
+
+    def login(self, user, password):
+        if not isinstance(user, str) or not isinstance(password, str) or len(password) > 256:
+            raise Fault(401, "Invalid login")
+        with self.store.tx() as db:
+            row = db.execute("SELECT * FROM users WHERE id=?", (user,)).fetchone()
+            valid = check_password(password, row["password"] if row else self.dummy_password)
+            if not row or not valid:
+                raise Fault(401, "Invalid login")
+            token, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
+            db.execute("DELETE FROM sessions WHERE expires<?", (time.time(),))
+            db.execute("INSERT INTO sessions VALUES(?,?,?,?)", (token_hash(token), user, csrf, time.time() + 28800))
+            return token, csrf
+
+    def authenticate(self, token):
+        with self.store.tx() as db:
+            row = db.execute("SELECT s.user,s.csrf,u.name FROM sessions s JOIN users u ON u.id=s.user "
+                             "WHERE token=? AND expires>?", (token_hash(token), time.time())).fetchone()
+            if not row:
+                raise Fault(401, "Please sign in")
+            return dict(row)
+
+    def logout(self, token):
+        with self.store.tx() as db:
+            db.execute("DELETE FROM sessions WHERE token=?", (token_hash(token),))
+
+    def snapshot(self, room, actor):
+        with self.store.tx() as db:
+            membership = member(db, room, actor)
+            state = dict(db.execute("SELECT * FROM rooms WHERE id=?", (room,)).fetchone())
+            claims = active_claims(db, room)
+            for c in claims:
+                c["statement"] = statement(c["key"], c["value"])
+            plans = []
+            for row in db.execute("SELECT * FROM plans WHERE room=? ORDER BY created DESC LIMIT 20", (room,)):
+                p = dict(row)
+                p["evidence"] = json.loads(p["evidence"])
+                p["result"] = json.loads(p["result"]) if p["result"] else None
+                p["stale"] = p["status"] == "proposed" and p["revision"] != state["revision"]
+                plans.append(p)
+            events = [dict(r) for r in db.execute("SELECT revision,actor,kind,payload,created FROM events "
+                                                 "WHERE room=? ORDER BY revision DESC LIMIT 100", (room,))]
+            for e in events:
+                e["payload"] = json.loads(e["payload"])
+            people = [dict(r) for r in db.execute("SELECT m.user,u.name,m.role FROM members m JOIN users u "
+                                                 "ON m.user=u.id WHERE room=? AND active=1", (room,))]
+            config = json.loads(state["config"])
+            return {"id": room, "name": state["name"], "revision": state["revision"],
+                    "role": membership["role"], "members": people, "claims": claims,
+                    "plans": plans, "events": events, "assessment": assess(claims),
+                    "runbook": RUNBOOK, "config": config, "checks": verify(config),
+                    "providers": {"private": self.private_provider.mode, "shared": self.shared_provider.mode}}
+
+    def private_state(self, room, actor):
+        with self.store.tx() as db:
+            member(db, room, actor)
+            docs = [dict(r) for r in db.execute("SELECT id,title,body,version FROM documents WHERE room=? AND owner=?",
+                                               (room, actor))]
+            proposals = [dict(r) for r in db.execute("SELECT p.*,d.id AS disclosure_id,d.active AS released "
+                       "FROM proposals p LEFT JOIN disclosures d ON p.id=d.proposal "
+                       "WHERE p.room=? AND p.owner=? ORDER BY p.created DESC LIMIT 40", (room, actor))]
+            for p in proposals:
+                p["statement"] = statement(p["key"], p["value"])
+            return {"documents": docs, "proposals": proposals}
+
+    def analyze(self, room, actor):
+        with self.store.tx() as db:
+            m = member(db, room, actor, FACTS_ROLES)
+            docs = [dict(r) for r in db.execute("SELECT id,title,body,version FROM documents WHERE room=? AND owner=?",
+                                               (room, actor))]
+            allowed = {k: v for k, v in FACTS.items() if v["role"] == m["role"]}
+            context = {"task": "Find the requested incident facts for optional disclosure to this room.",
+                       "allowed_facts": allowed, "documents": docs}
+        try:
+            output = self.private_provider.private(context)
+        except ProviderError as exc:
+            raise Fault(502, str(exc)) from None
+        sources = {d["id"]: d["version"] for d in docs}
+        if (not isinstance(output, dict) or set(output) != {"proposals"}
+                or not isinstance(output["proposals"], list) or len(output["proposals"]) > 8):
+            raise Fault(502, "Private worker returned an invalid proposal schema")
+        for p in output["proposals"]:
+            if (not isinstance(p, dict) or set(p) != {"key", "value", "source_id"}
+                    or not all(isinstance(v, str) for v in p.values())
+                    or p["key"] not in allowed or p["value"] not in allowed[p["key"]]["values"]
+                    or p["source_id"] not in sources):
+                raise Fault(502, "Private worker output failed the disclosure boundary")
+        with self.store.tx() as db:
+            current = member(db, room, actor, FACTS_ROLES)
+            if current["role"] != m["role"]:
+                raise Fault(409, "Your role changed during analysis")
+            current_sources = {r["id"]: r["version"] for r in db.execute(
+                "SELECT id,version FROM documents WHERE room=? AND owner=?", (room, actor))}
+            if current_sources != sources:
+                raise Fault(409, "Private evidence changed; analyze again")
+            ids = []
+            for p in output["proposals"]:
+                existing = db.execute("SELECT id FROM proposals WHERE room=? AND owner=? AND source_id=? "
+                    "AND source_version=? AND key=? AND value=?", (room, actor, p["source_id"],
+                        sources[p["source_id"]], p["key"], p["value"])).fetchone()
+                pid = existing["id"] if existing else identifier()
+                if not existing:
+                    db.execute("INSERT INTO proposals VALUES(?,?,?,?,?,?,?,?)",
+                        (pid, room, actor, p["source_id"], sources[p["source_id"]], p["key"], p["value"], time.time()))
+                ids.append(pid)
+            return {"proposal_ids": ids}
+
+    def disclose(self, room, actor, proposal_id):
+        with self.store.tx() as db:
+            m = member(db, room, actor, FACTS_ROLES)
+            p = db.execute("SELECT * FROM proposals WHERE id=? AND room=? AND owner=?",
+                           (proposal_id, room, actor)).fetchone()
+            if not p:
+                raise Fault(404, "Proposal not found")
+            source = db.execute("SELECT version FROM documents WHERE id=? AND room=? AND owner=?",
+                                (p["source_id"], room, actor)).fetchone()
+            if not source or source["version"] != p["source_version"] or FACTS[p["key"]]["role"] != m["role"]:
+                raise Fault(409, "Proposal is stale; analyze again")
+            old = db.execute("SELECT id,active FROM disclosures WHERE proposal=?", (proposal_id,)).fetchone()
+            if old:
+                if not old["active"]:
+                    raise Fault(409, "This disclosure was withdrawn; create new evidence before sharing again")
+                return {"id": old["id"]}
+            did = identifier()
+            db.execute("INSERT INTO disclosures(id,room,owner,proposal,key,value,created) VALUES(?,?,?,?,?,?,?)",
+                       (did, room, actor, proposal_id, p["key"], p["value"], time.time()))
+            # No private source identifier or private title enters the public event.
+            event(db, room, actor, "disclosed", {"id": did, "key": p["key"], "value": p["value"],
+                                               "statement": statement(p["key"], p["value"])})
+            return {"id": did}
+
+    def withdraw(self, room, actor, disclosure_id):
+        with self.store.tx() as db:
+            member(db, room, actor)
+            row = db.execute("SELECT * FROM disclosures WHERE id=? AND room=? AND owner=?",
+                             (disclosure_id, room, actor)).fetchone()
+            if not row:
+                raise Fault(404, "Disclosure not found")
+            if row["active"]:
+                db.execute("UPDATE disclosures SET active=0 WHERE id=?", (disclosure_id,))
+                event(db, room, actor, "withdrawn", {"id": disclosure_id})
+            return {"ok": True}
+
+    def coordinate(self, room, actor):
+        with self.store.tx() as db:
+            member(db, room, actor, FACTS_ROLES)
+            r = dict(db.execute("SELECT * FROM rooms WHERE id=?", (room,)).fetchone())
+            claims = active_claims(db, room)
+            assessment = assess(claims)
+            if assessment["missing"] or assessment["conflicts"]:
+                requests = [{"key": key, "role": FACTS[key]["role"], "label": FACTS[key]["label"]}
+                            for key in assessment["missing"]]
+                event(db, room, actor, "delegated", {"requests": requests, "conflicts": assessment["conflicts"]})
+                return {"status": "needs_evidence", "requests": requests, "conflicts": assessment["conflicts"]}
+            context = {"company_knowledge": RUNBOOK,
+                       "disclosures": [{"id": c["id"], "key": c["key"], "value": c["value"]} for c in claims],
+                       "simulator": json.loads(r["config"]),
+                       "eligible_actions": assessment["eligible"]}
+        try:
+            output = self.shared_provider.shared(context)
+        except ProviderError as exc:
+            raise Fault(502, str(exc)) from None
+        if (not isinstance(output, dict) or set(output) != {"action"}
+                or (output["action"] is not None and output["action"] not in assessment["eligible"])):
+            raise Fault(502, "Coordinator proposed an unauthorized action")
+        with self.store.tx() as db:
+            member(db, room, actor, FACTS_ROLES)
+            current = db.execute("SELECT * FROM rooms WHERE id=?", (room,)).fetchone()
+            if current["revision"] != r["revision"]:
+                raise Fault(409, "Team evidence changed during planning; coordinate again")
+            if output["action"] is None:
+                event(db, room, actor, "abstained", {})
+                return {"status": "abstained"}
+            pid = identifier()
+            comparisons = [simulate(json.loads(r["config"]), action)[1] for action in ACTIONS]
+            revision = event(db, room, actor, "planned", {"id": pid, "action": output["action"],
+                                                         "comparisons": comparisons,
+                                                         "model": self.shared_provider.mode,
+                                                         "evidence": [c["id"] for c in claims]})
+            db.execute("INSERT INTO plans(id,room,revision,config_version,action,evidence,created) VALUES(?,?,?,?,?,?,?)",
+                       (pid, room, revision, r["config_version"], output["action"],
+                        json.dumps([c["id"] for c in claims]), time.time()))
+            return {"status": "proposed", "plan_id": pid}
+
+    def execute(self, room, actor, plan_id):
+        with self.store.tx() as db:
+            member(db, room, actor, {"operations"})
+            p = db.execute("SELECT * FROM plans WHERE id=? AND room=?", (plan_id, room)).fetchone()
+            if not p:
+                raise Fault(404, "Plan not found")
+            if p["result"]:
+                return json.loads(p["result"])
+            r = db.execute("SELECT * FROM rooms WHERE id=?", (room,)).fetchone()
+            claims = active_claims(db, room)
+            if (p["revision"] != r["revision"] or p["config_version"] != r["config_version"]
+                    or set(json.loads(p["evidence"])) != {c["id"] for c in claims}
+                    or p["action"] not in assess(claims)["eligible"]):
+                raise Fault(409, "Plan is stale; coordinate with current evidence before executing")
+            config, result = simulate(json.loads(r["config"]), p["action"])
+            result["plan_id"] = plan_id
+            result["committed"] = result["passed"]
+            if result["passed"]:
+                db.execute("UPDATE rooms SET config=?,config_version=config_version+1 WHERE id=?",
+                           (json.dumps(config), room))
+            db.execute("UPDATE plans SET status=?,result=? WHERE id=?",
+                       ("executed" if result["passed"] else "failed", json.dumps(result), plan_id))
+            event(db, room, actor, "verified" if result["passed"] else "verification_failed", result)
+            return result
+
+    def message(self, room, actor, text):
+        if not isinstance(text, str) or not text.strip() or len(text) > 2000:
+            raise Fault(400, "Message must contain 1–2000 characters")
+        with self.store.tx() as db:
+            member(db, room, actor, FACTS_ROLES)
+            event(db, room, actor, "message", {"text": text.strip()})
+        return {"ok": True}
+
+    def update_document(self, room, actor, doc_id, body, version):
+        if not isinstance(body, str) or not body.strip() or len(body) > 16000 or type(version) is not int:
+            raise Fault(400, "Invalid private document")
+        with self.store.tx() as db:
+            member(db, room, actor, FACTS_ROLES)
+            doc = db.execute("SELECT * FROM documents WHERE id=? AND room=? AND owner=?", (doc_id, room, actor)).fetchone()
+            if not doc:
+                raise Fault(404, "Document not found")
+            if doc["version"] != version:
+                raise Fault(409, "Document changed; refresh before editing")
+            db.execute("UPDATE documents SET body=?,version=version+1 WHERE id=?", (body, doc_id))
+            # Updating a source invalidates all its current releases, without exposing its contents.
+            disclosures = list(db.execute("SELECT d.id FROM disclosures d JOIN proposals p ON p.id=d.proposal "
+                                          "WHERE p.source_id=? AND d.active=1", (doc_id,)))
+            for d in disclosures:
+                db.execute("UPDATE disclosures SET active=0 WHERE id=?", (d["id"],))
+                event(db, room, actor, "withdrawn", {"id": d["id"]})
+        return {"ok": True}
+
+    def revoke(self, room, actor, target):
+        with self.store.tx() as db:
+            member(db, room, actor, {"operations"})
+            if actor == target:
+                raise Fault(400, "Self-revocation is not supported")
+            member(db, room, target)
+            db.execute("UPDATE members SET active=0 WHERE room=? AND user=?", (room, target))
+            db.execute("UPDATE disclosures SET active=0 WHERE room=? AND owner=?", (room, target))
+            event(db, room, actor, "member_revoked", {"user": target})
+        return {"ok": True}
+
+
+FACTS_ROLES = {schema["role"] for schema in FACTS.values()}

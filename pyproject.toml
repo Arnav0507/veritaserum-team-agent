@@ -1,0 +1,9 @@
+[project]
+name = "veritaserum"
+version = "0.1.0"
+description = "A shared incident agent with explicit private evidence disclosure"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
