@@ -744,3 +744,6 @@ dialog legend{
 .login-card{
   margin-bottom:20px}
 }
+.context-receipt { margin: 16px 0; padding: 12px; border: 1px solid #d8dfd3; border-radius: 8px; }
+.context-receipt summary { cursor: pointer; font-weight: 650; }
+.context-receipt pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow-y: auto; font-size: 12px; }

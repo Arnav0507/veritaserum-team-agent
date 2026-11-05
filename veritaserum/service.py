@@ -263,6 +263,9 @@ class Service:
                        "disclosures": [{"id": c["id"], "key": c["key"], "value": c["value"]} for c in claims],
                        "simulator": json.loads(r["config"]),
                        "eligible_actions": assessment["eligible"]}
+        # Preserve the application input before handing a separate object to the adapter.
+        # This receipt contains only already-shared data, never headers or private inputs.
+        context_receipt = json.loads(json.dumps(context))
         output = self._infer(("shared", room), self.shared_provider.shared, context)
         if (not isinstance(output, dict) or set(output) != {"action"}
                 or (output["action"] is not None and output["action"] not in assessment["eligible"])):
@@ -278,6 +281,7 @@ class Service:
             pid = identifier()
             comparisons = [simulate(json.loads(r["config"]), action)[1] for action in ACTIONS]
             revision = event(db, room, actor, "planned", {"id": pid, "action": output["action"],
+                                                         "shared_context": context_receipt,
                                                          "company_knowledge": r["runbook"], "goal": r["goal"],
                                                          "comparisons": comparisons,
                                                          "model": self.shared_provider.mode,

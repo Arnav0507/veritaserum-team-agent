@@ -227,6 +227,14 @@ function renderShared() {
     const status = plan.stale ? 'EVIDENCE CHANGED · UPDATE NEEDED' : {proposed: 'READY FOR OPERATIONS REVIEW', executed: 'VERIFIED AND APPLIED', failed: 'VERIFICATION FAILED'}[plan.status];
     box.append(el('span', status, 'eyebrow'), el('h3', actions[plan.action] || plan.action), el('p', `Based on ${plan.evidence.length} approved statements.`));
     const event = state.events.find(e => e.kind === 'planned' && e.payload.id === plan.id);
+    const receipt = el('details', undefined, 'context-receipt');
+    receipt.append(el('summary', 'Inspect what the shared agent received'));
+    receipt.append(el('p', 'Application context passed to the shared provider for this plan. Adapter instructions and subsequent tool messages are separate. This is not hidden model reasoning.'));
+    if (event?.payload.shared_context) {
+      receipt.append(el('pre', JSON.stringify(event.payload.shared_context, null, 2)));
+      receipt.append(el('p', 'Private notes and pending proposals are excluded by context construction. Provider credentials are sent separately as authentication headers. Information deliberately entered into shared fields is shared.'));
+    } else receipt.append(el('p', 'No context receipt was recorded for this older plan. Create a new plan in an open investigation to inspect its input.'));
+    box.append(receipt);
     if (event?.payload.comparisons) {
       box.append(el('h3', 'Candidate repair checks'));
       for (const comparison of event.payload.comparisons) {

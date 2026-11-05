@@ -6,7 +6,7 @@ Local single-host prototype with synthetic checkout evidence. Tests exercise the
 
 ## Completed evidence
 
-Automated suite includes 49 tests after the investigation and evidence lifecycle changes. JavaScript syntax and Python compilation checks also passed. Tests run with ResourceWarning promoted to an error.
+Automated suite includes 50 tests after the investigation and evidence lifecycle changes. JavaScript syntax and Python compilation checks also passed. Tests run with ResourceWarning promoted to an error.
 
 - Domain tests: three-person successful repair; private notes and source IDs absent from shared responses/model context; unapproved drafts stay private; cross-owner and cross-room denial; contributor/viewer restrictions; stale source revisions; withdrawal; revocation during inference; shared context changes during inference; racing executions yield one effect; durable restart; malformed/hostile output rejection; failed simulations do not commit; conflicting evidence cannot authorize execution.
 - HTTP tests: three independent authenticated sessions complete the joint workflow; cookie flags; unauthenticated access; CSRF/origin; actor spoofing; private response scope; cache prevention; host rebinding; static-file traversal/allowlist; body limits; logout.
@@ -36,3 +36,9 @@ node --check web/app.js
 A new investigation was created through the browser, with private notes authored separately as support, engineering, and operations. Each person reviewed and released their statement; the shared agent proposed a repair and operations applied it with all four checks passing. Source-note visibility, withdrawal/re-sharing, and retention of unsaved private edits during shared updates were checked. This run used the deterministic reference provider.
 
 The updated interface was inspected at 1440px and 390px with no horizontal overflow. Product screenshot: `artifacts/product_workspace.png`.
+
+## Shared-context receipt and boundary challenge
+
+Successful planning now records the application context passed to the shared provider before inference. The UI shows it on the plan; older plans explicitly lack receipts. The receipt is not the complete wire request, system instructions, tool transcript, or hidden reasoning. A new live Meta coordinator run with previously approved synthetic evidence produced a receipt and passed all execution checks; the inspector was verified in the browser.
+
+`tests/test_boundary_receipts.py` runs two fresh reference-provider workspaces with different fake private credentials and an instruction to reveal them. It checks exact equality between the receipt and captured shared-provider input, exclusion of the fake credential from the shared snapshot and another participant's private view, and identical normalized shared inputs across both worlds. It also verifies withdrawal rejects execution and re-approval plus replanning permits successful repair. This is a bounded deterministic regression test, not a live-model prompt-injection benchmark or formal noninterference proof.
