@@ -32,14 +32,14 @@ async function api(path, body) {
   } finally { clearTimeout(timeout); }
 }
 function clearViews() {
-  for (const id of ['private-chat-messages', 'private-requests', 'private-documents', 'proposals', 'claims', 'messages', 'graph', 'activity', 'members', 'plan', 'node-detail', 'requirements', 'checks']) $(id).replaceChildren();
+  for (const id of ['private-requests', 'private-documents', 'proposals', 'claims', 'messages', 'graph', 'activity', 'members', 'plan', 'node-detail', 'requirements', 'checks']) $(id).replaceChildren();
   $('node-detail').hidden = true;
 }
 function clearSession() {
   generation++; auth = state = privateState = activeRoom = null; rooms = []; drafts.clear(); busy = false;
   clearViews();
   document.querySelectorAll('dialog[open]').forEach(d => d.close());
-  for (const id of ['private-chat-input', 'note-body', 'note-title', 'knowledge-body', 'message', 'new-name', 'new-goal', 'password']) $(id).value = '';
+  for (const id of ['note-body', 'note-title', 'knowledge-body', 'message', 'new-name', 'new-goal', 'password']) $(id).value = '';
   $('workspace').hidden = true; $('login-view').hidden = false;
 }
 function renderRooms() {
@@ -53,7 +53,7 @@ function renderRooms() {
 async function selectRoom(id) {
   if (busy || id === activeRoom) return;
   generation++; activeRoom = id; state = privateState = null; clearViews();
-  $('message').value = ''; $('private-chat-input').value = ''; notice(''); $('room-title').textContent = 'Opening team chat…';
+  $('message').value = ''; notice(''); $('room-title').textContent = 'Opening team chat…';
   $('next-action').disabled = true;
   await refresh();
 }
@@ -70,7 +70,8 @@ async function refresh(force = false) {
     if (!rooms.length) { clearSession(); $('login-error').textContent = 'You have no active team chats. Contact your workspace administrator.'; return; }
     if (!rooms.some(r => r.id === activeRoom)) { activeRoom = rooms[0].id; state = privateState = null; clearViews(); }
     const selected = activeRoom;
-    const [next, priv] = await Promise.all([api(endpoint('state')), api(endpoint('private'))]);
+    const [next, priv, conversation] = await Promise.all([api(endpoint('state')), api(endpoint('private')), api(endpoint('conversation'))]);
+    priv.conversation = conversation;
     if (epoch !== generation || selected !== activeRoom) return;
     const sharedChanged = force || JSON.stringify(next) !== JSON.stringify(state);
     const privateChanged = force || JSON.stringify(priv) !== JSON.stringify(privateState);
@@ -88,10 +89,10 @@ async function refresh(force = false) {
 }
 function setBusy(value) {
   busy = value; $('workspace').setAttribute('aria-busy', String(value));
-  document.querySelectorAll('#workspace button:not(#logout), #room-select').forEach(b => b.disabled = value);
+  document.querySelectorAll('#workspace button:not(#logout), #room-select, #audience, #message').forEach(b => b.disabled = value);
   document.querySelectorAll('dialog button[type="submit"]').forEach(b => b.disabled = value);
 }
-const progressText = {'private-chat': 'Your private agent is replying. Nothing is being shared.', 'team-chat': 'The team agent is coordinating the next step…', analyze: 'Your private agent is reviewing your notes. Nothing is being shared.', coordinate: 'The team agent is investigating candidate repairs in the sandbox…', execute: 'Checking permissions, testing the repair, and applying it if verification passes…'};
+const progressText = {turn: 'Veritaserum is responding within the selected audience…', 'private-chat': 'Your private agent is replying. Nothing is being shared.', 'team-chat': 'The team agent is coordinating the next step…', analyze: 'Veritaserum is reviewing your private evidence. Nothing is being shared.', coordinate: 'The team agent is investigating candidate repairs in the sandbox…', execute: 'Checking permissions, testing the repair, and applying it if verification passes…'};
 async function act(op, body = {}, success = '', errorTarget = null) {
   if (busy) return;
   const epoch = generation;
@@ -119,11 +120,17 @@ async function act(op, body = {}, success = '', errorTarget = null) {
   }
 }
 function openNote() { $('note-error').textContent = ''; $('note-dialog').showModal(); $('note-title').focus(); }
-function renderPrivate() {
-  $('private-chat-form').hidden = state.role === 'viewer';
-  $('private-chat-messages').replaceChildren(...(privateState.messages || []).map(m => {
-    const box = el('div', undefined, 'message'); box.append(el('strong', m.speaker === 'you' ? 'You · private' : 'Your private agent'), el('p', m.text)); return box;
+function renderConversation() {
+  if (!privateState) return;
+  $('messages').replaceChildren(...(privateState.conversation?.turns || []).map(turn => {
+    const box = el('article', undefined, `message turn-${turn.audience}`);
+    box.append(el('strong', turn.speaker === 'agent' ? 'Veritaserum' : nameOf(turn.speaker)),
+      el('small', turn.audience === 'private' ? 'Only you · private' : 'Everyone · team'), el('p', turn.text));
+    return box;
   }));
+}
+function renderPrivate() {
+  renderConversation();
   const latestRequest = state.events.find(e => e.kind === 'delegated');
   const requested = (latestRequest?.payload.requests || []).filter(r => r.role === state.role && state.assessment.missing.includes(r.key));
   $('private-requests').replaceChildren(el('strong', requested.length ? 'Request from the team agent' : 'Your private workspace'),
@@ -180,7 +187,7 @@ function renderNext() {
   let title, description, label, fn;
   if (healthy()) { title = 'The repair is verified'; description = 'All checkout checks pass. The decision history preserves the evidence and approvals behind this result.'; label = 'See verification'; fn = () => $('checks').scrollIntoView({behavior: 'smooth', block: 'center'}); }
   else if (state.role === 'viewer') { title = 'Follow the team chat'; description = 'You can read the shared evidence, decisions, and results. Contributors control their own disclosures.'; label = 'See shared evidence'; fn = () => $('claims').scrollIntoView({behavior: 'smooth'}); }
-  else if (!privateState.documents.length) { title = 'Talk to your private agent'; description = `Your team needs ${labels[key].toLowerCase()}. Add what you know; nothing is shared automatically.`; label = 'Start privately'; fn = () => $('private-chat-input').focus(); }
+  else if (!privateState.documents.length) { title = 'Continue privately with Veritaserum'; description = `Your team needs ${labels[key].toLowerCase()}. Add what you know; nothing is shared automatically.`; label = 'Start privately'; fn = () => ($('audience').value = 'private', $('audience').onchange(), $('message').focus()); }
   else if (mine) { title = 'Choose what your team can see'; description = 'Your agent has proposed statements. Review their accuracy and share only what belongs in the team chat.'; label = 'Review statements'; fn = () => $('proposals').scrollIntoView({behavior: 'smooth', block: 'center'}); }
   else if (state.assessment.missing.includes(key)) { title = 'Review your private evidence'; description = `Help the team understand ${labels[key].toLowerCase()}. Your agent will propose a statement for your approval.`; label = 'Review my evidence'; fn = () => $('analyze').click(); }
   else if (state.assessment.conflicts.length) { title = 'Resolve conflicting statements'; description = 'Some shared statements disagree. Their owners should review the source notes and withdraw or update the conflicting evidence.'; label = 'Review shared evidence'; fn = () => $('claims').scrollIntoView({behavior: 'smooth'}); }
@@ -258,13 +265,7 @@ function renderShared() {
     } else box.append(el('p', plan.result?.committed ? 'The repair passed verification and was applied to the sandbox.' : 'The repair failed verification. Review the evidence; no configuration change was applied.'));
     area.append(box);
   }
-  const messages = $('messages'); messages.replaceChildren();
-  for (const e of state.events.filter(e => ['message', 'delegated', 'planned', 'abstained'].includes(e.kind)).slice(0, 16).reverse()) {
-    const text = e.kind === 'message' ? e.payload.text : e.kind === 'delegated' ?
-      `I’m requesting private contributions: ${(e.payload.requests || []).map(r => `${roleNames[r.role]} — ${r.label}`).join('; ') || 'resolve conflicting approved statements'}. Each owner decides what to share.` :
-      e.kind === 'planned' ? 'I compared the approved evidence and prepared a repair for operations to review.' : 'I could not support a repair from the current evidence.';
-    const n = el('div', undefined, 'message'); n.append(el('small', e.kind === 'message' ? nameOf(e.actor) : 'Team agent'), el('span', text)); messages.append(n);
-  }
+  renderConversation();
   const plannedEvent = plan && state.events.find(e => e.kind === 'planned' && e.payload.id === plan.id);
   const graph = $('graph'); graph.replaceChildren(graphNode('Company knowledge', plan ? 'Context at planning' : 'Shared context',
     {runbook: plan ? plannedEvent?.payload.company_knowledge ?? 'Historical context unavailable in this recent activity window.' : state.runbook}));
@@ -307,14 +308,17 @@ $('room-select').onchange = () => selectRoom($('room-select').value);
 $('add-note').onclick = openNote;
 $('analyze').onclick = () => act('analyze', {}, 'Your evidence is reviewed. Choose which statements to share.');
 $('coordinate').onclick = () => act('coordinate', {}, 'A repair is ready for operations to review.');
-$('message-form').onsubmit = async event => { event.preventDefault(); const result = await act('team-chat', {text: $('message').value}, 'The team agent responded.'); if (result) $('message').value = ''; };
-$('private-chat-form').onsubmit = async event => {
+$('audience').onchange = () => {
+  // Never carry a private draft into a broader audience implicitly.
+  $('message').value = '';
+  const privateTurn = $('audience').value === 'private';
+  $('send-turn').textContent = privateTurn ? 'Send privately' : 'Send to team';
+  $('audience-hint').textContent = privateTurn ? 'Only you see this message and reply. Proposed contributions need your approval before sharing.' : 'This message and the reply are visible to everyone.';
+};
+$('message-form').onsubmit = async event => {
   event.preventDefault();
-  const result = await act('private-chat', {text: $('private-chat-input').value}, 'Your private agent replied.');
-  if (result) {
-    $('private-chat-input').value = '';
-    await act('analyze', {}, 'Private response ready. Review proposed statements below; nothing has been shared.');
-  }
+  const result = await act('turn', {audience: $('audience').value, text: $('message').value}, 'The agent responded. Private contributions still require your approval.');
+  if (result) $('message').value = '';
 };
 $('note-form').onsubmit = async event => {
   event.preventDefault(); const result = await act('add-document', {title: $('note-title').value, body: $('note-body').value}, 'Private note saved. Review it with your agent when you are ready.', 'note-error');

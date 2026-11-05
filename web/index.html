@@ -53,12 +53,10 @@
     <ol id="progress" class="progress" aria-label="Team chat progress"></ol>
     <div class="columns">
       <aside class="private-panel">
-        <div class="panel-title"><div><span class="eyebrow">PRIVATE TO YOU</span><h2>Your private agent</h2></div><span class="lock" aria-hidden="true">◈</span></div>
+        <div class="panel-title"><div><span class="eyebrow">PRIVATE TO YOU</span><h2>Your evidence & approvals</h2></div><span class="lock" aria-hidden="true">◈</span></div>
         <p class="muted">Your notes stay in your workspace. Your agent proposes statements for you to review before sharing.</p>
         <div id="private-requests" class="agent-intro"></div>
-        <div id="private-chat-messages" class="chat-history" aria-live="polite"></div>
-        <form id="private-chat-form"><label for="private-chat-input">Message your private agent</label><textarea id="private-chat-input" maxlength="2000" required placeholder="Share your observations or ask your agent for help…"></textarea><button type="submit" class="primary full">Send privately</button></form>
-        <p class="hint">Sends only your context to the private AI provider. Messages are saved as private evidence (up to 20 notes/messages per person in this chat). Review proposed statements before sharing.</p>
+        <p class="hint">Private evidence and release approvals for this same conversation. Only you can see this panel.</p>
         <button id="add-note" class="secondary full">Add a private note</button>
         <div id="private-documents"></div>
         <button id="analyze" class="primary full">Review my evidence</button>
@@ -66,10 +64,16 @@
         <div id="proposals"></div>
       </aside>
       <section class="shared-panel">
-        <div class="panel-title"><div><span class="eyebrow">SHARED WITH THIS TEAM</span><h2>Team chat</h2></div><span class="agent-mark" aria-hidden="true">✳</span></div>
+        <div class="panel-title"><div><span class="eyebrow">ONE AGENT · AUDIENCE-SCOPED CONTEXT</span><h2>Veritaserum</h2></div><span class="agent-mark" aria-hidden="true">✳</span></div>
         <div class="conversation"><h3>Talk to the team agent</h3><div id="messages"></div>
-          <form id="message-form"><label class="sr-only" for="message">Message to everyone in this team chat</label><input id="message" maxlength="2000" placeholder="Ask the team agent to coordinate…" required><button type="submit" class="secondary">Send</button></form>
-          <p class="hint">The team agent requests missing perspectives from private agents. Their owners choose what to release. Messages here are visible to everyone.</p>
+          <form id="message-form">
+            <label for="audience">Who can see this message and the reply?</label>
+            <select id="audience"><option value="team">Everyone in this team</option><option value="private">Only me and Veritaserum</option></select>
+            <label for="message">Message Veritaserum</label><textarea id="message" maxlength="2000" placeholder="Continue the shared task, or choose Only me for private evidence…" required></textarea>
+            <p id="audience-hint" class="hint">This message and the reply are visible to everyone.</p>
+            <button id="send-turn" type="submit" class="primary">Send to team</button>
+          </form>
+          <p class="hint">One task, one agent. Private turns remain visible only to their author; approved statements can return to the team. The AI provider processes the context for the selected audience.</p>
         </div>
         <div class="agent-intro"><strong id="agent-title"></strong><p id="agent-summary"></p><details><summary>Company knowledge</summary><p id="runbook"></p><button id="edit-knowledge" class="quiet">Update shared knowledge</button></details></div>
         <div id="requirements" class="requirements"></div><div id="claims"></div>

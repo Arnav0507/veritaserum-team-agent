@@ -69,3 +69,9 @@ Operations can create an investigation by explicitly selecting active members fr
 Company-knowledge edits use a revision precondition and invalidate pending plans. Planning events retain the knowledge snapshot used for that decision. Re-sharing a withdrawn statement requires fresh explicit owner approval and a still-current source version; it does not revive an older plan. Duplicate model calls are rejected while an equivalent worker is in flight within the process. This is not a durable distributed job queue.
 
 The browser keeps unsaved private-note edits only in memory, preserving them across shared refreshes while clearing them on logout. Investigation changes clear rendered private state before the next fetch. Role-specific next-step guidance reflects missing evidence, conflicts, approval, and verification. Recent activity is bounded; the database retains the underlying record.
+
+## Audience-scoped conversation runtime
+
+`POST /api/rooms/:room/turn` accepts only `team` or `private` audiences, deriving the sender from the authenticated session. `GET .../conversation` projects shared events together with only that caller's private turns. `_conversation` is also used to compile model context, with private rows excluded entirely for team requests. Private model replies remain owner-scoped; subsequent team calls cannot inherit them through a common model session. All model contexts carry the same task ID and Veritaserum agent identity. A deliberate typed disclosure inserts an approved contribution into shared history. The previous role-scoped action gate and revision checks remain independent of model output.
+
+This supports one logical agent with multiple context projections. It does not claim cryptographic isolation, arbitrary recipient groups, distributed durable orchestration, or general task-domain support.

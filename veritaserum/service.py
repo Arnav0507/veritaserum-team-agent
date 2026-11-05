@@ -50,6 +50,40 @@ class Service:
             with self._inflight_lock:
                 self._inflight.discard(scope)
 
+    def _conversation(self, db, room, actor, audience):
+        """Server-side audience projection. Private turns never enter a team projection."""
+        turns = []
+        for row in db.execute("SELECT id,actor,kind,payload,created FROM events WHERE room=? ORDER BY revision DESC LIMIT 100", (room,)):
+            payload = json.loads(row["payload"])
+            if row["kind"] in {"message", "agent_message"}:
+                turns.append({"id": "shared-" + str(row["id"]), "audience": "team",
+                    "speaker": row["actor"] if row["kind"] == "message" else "agent",
+                    "text": payload["text"], "created": row["created"]})
+            elif row["kind"] == "disclosed":
+                turns.append({"id": "shared-" + str(row["id"]), "audience": "team", "speaker": "agent",
+                    "text": "Approved contribution from " + row["actor"] + ": " + payload["statement"], "created": row["created"]})
+            elif row["kind"] == "delegated":
+                turns.append({"id": "shared-" + str(row["id"]), "audience": "team", "speaker": "agent",
+                    "text": "I need approved evidence for: " + ", ".join(r["label"] for r in payload["requests"]) + ". You can respond privately; I will ask before sharing a statement.", "created": row["created"]})
+        if audience == "private":
+            for row in db.execute("SELECT id,speaker,text,created FROM private_messages WHERE room=? AND owner=? ORDER BY id DESC LIMIT 40", (room, actor)):
+                turns.append({"id": "private-" + str(row["id"]), "audience": "private",
+                    "speaker": actor if row["speaker"] == "you" else "agent", "text": row["text"], "created": row["created"]})
+        return sorted(turns, key=lambda t: (t["created"], t["id"]))
+
+    def conversation(self, room, actor):
+        with self.store.tx() as db:
+            member(db, room, actor)
+            return {"task_id": room, "agent": "Veritaserum", "turns": self._conversation(db, room, actor, "private")}
+
+    def turn(self, room, actor, audience, text):
+        if not isinstance(audience, str) or audience not in {"team", "private"}:
+            raise Fault(400, "Choose team or private audience")
+        if audience == "team":
+            return self.team_chat(room, actor, text)
+        self.private_chat(room, actor, text)
+        return self.analyze(room, actor)
+
     def list_rooms(self, actor):
         with self.store.tx() as db:
             return {"rooms": [dict(r) for r in db.execute(
@@ -182,9 +216,13 @@ class Service:
                        (room, actor, "you", text.strip(), time.time()))
             docs = [dict(r) for r in db.execute("SELECT id,title,body,version FROM documents WHERE room=? AND owner=?", (room, actor))]
             history = [dict(r) for r in db.execute("SELECT speaker,text FROM private_messages WHERE room=? AND owner=? ORDER BY id DESC LIMIT 12", (room, actor))][::-1]
-            r = db.execute("SELECT goal FROM rooms WHERE id=?", (room,)).fetchone()
+            r = db.execute("SELECT goal,runbook FROM rooms WHERE id=?", (room,)).fetchone()
             context = {"role": m["role"], "team_goal": r["goal"], "messages": history,
                        "documents": docs, "requested_facts": [k for k, f in FACTS.items() if f["role"] == m["role"]]}
+            context.update({"task_id": room, "agent_identity": "Veritaserum", "audience": "private",
+                            "company_knowledge": r["runbook"],
+                            "conversation": self._conversation(db, room, actor, "private"),
+                            "approved_facts": active_claims(db, room)})
             context["team_messages"] = [json.loads(e["payload"])["text"] for e in db.execute(
                 "SELECT payload FROM events WHERE room=? AND kind='message' ORDER BY revision DESC LIMIT 8", (room,))][::-1]
         result = self._infer(("private", room, actor), self.private_provider.converse, context)
@@ -201,6 +239,21 @@ class Service:
 
     def team_chat(self, room, actor, text):
         self.message(room, actor, text)
+        with self.store.tx() as db:
+            member(db, room, actor, FACTS_ROLES)
+            r = db.execute("SELECT goal,runbook,revision FROM rooms WHERE id=?", (room,)).fetchone()
+            context = {"task_id": room, "agent_identity": "Veritaserum", "audience": "team",
+                       "goal": r["goal"], "company_knowledge": r["runbook"],
+                       "conversation": self._conversation(db, room, actor, "team"),
+                       "approved_facts": active_claims(db, room), "assessment": assess(active_claims(db, room))}
+        response = self._infer(("shared", room), self.shared_provider.converse, context)
+        if not isinstance(response, dict) or set(response) != {"reply"} or not isinstance(response["reply"], str) or not 1 <= len(response["reply"]) <= 6000:
+            raise Fault(502, "Agent returned an invalid reply. Your team message is saved.")
+        with self.store.tx() as db:
+            member(db, room, actor, FACTS_ROLES)
+            if db.execute("SELECT revision FROM rooms WHERE id=?", (room,)).fetchone()[0] != r["revision"]:
+                raise Fault(409, "Team context changed during the reply. Please send again.")
+            event(db, room, actor, "agent_message", {"text": response["reply"], "shared_context": context})
         return self.coordinate(room, actor)
 
     def analyze(self, room, actor):

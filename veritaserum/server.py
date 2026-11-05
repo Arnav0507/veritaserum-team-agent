@@ -142,12 +142,13 @@ class Handler(BaseHTTPRequestHandler):
                 raise Fault(404, "Not found")
             room, operation = parts[2:]
             actor = auth["user"]
-            reads = {"state": s.snapshot, "private": s.private_state}
+            reads = {"state": s.snapshot, "private": s.private_state, "conversation": s.conversation}
             if not mutation and operation in reads:
                 result = reads[operation](room, actor)
             elif mutation:
                 # No client supplied actor, role, action or execution arguments are trusted.
                 routes = {
+                    "turn": lambda: s.turn(room, actor, body.get("audience"), body.get("text")),
                     "analyze": lambda: s.analyze(room, actor),
                     "disclose": lambda: s.disclose(room, actor, required_string(body, "proposal_id")),
                     "withdraw": lambda: s.withdraw(room, actor, required_string(body, "disclosure_id")),

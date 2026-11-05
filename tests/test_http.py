@@ -100,6 +100,10 @@ class HttpTests(unittest.TestCase):
         other, _ = self.login("eli")
         for route in ("/private", "/state"):
             self.assertNotIn("PRIVATE-CHAT-CANARY", json.dumps(self.request(base + route, cookie=other)[2]))
+        self.assertEqual(self.request(base + "/turn", {"audience": "private", "text": "FACT affected_segment=eu_wallet"}, cookie, csrf)[0], 200)
+        self.assertEqual(self.request(base + "/turn", {"audience": "eli", "text": "hello"}, cookie, csrf)[0], 400)
+        self.assertIn("PRIVATE-CHAT-CANARY", json.dumps(self.request(base + "/conversation", cookie=cookie)[2]))
+        self.assertNotIn("PRIVATE-CHAT-CANARY", json.dumps(self.request(base + "/conversation", cookie=other)[2]))
 
     def test_changed_browser_identity_is_not_mislabeled(self):
         cookie, csrf = self.login("eli")

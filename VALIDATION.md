@@ -6,7 +6,7 @@ Local single-host prototype with synthetic checkout evidence. Tests exercise the
 
 ## Completed evidence
 
-Automated suite includes 54 tests after the investigation and evidence lifecycle changes. JavaScript syntax and Python compilation checks also passed. Tests run with ResourceWarning promoted to an error.
+Automated suite includes 55 tests after the investigation and evidence lifecycle changes. JavaScript syntax and Python compilation checks also passed. Tests run with ResourceWarning promoted to an error.
 
 - Domain tests: three-person successful repair; private notes and source IDs absent from shared responses/model context; unapproved drafts stay private; cross-owner and cross-room denial; contributor/viewer restrictions; stale source revisions; withdrawal; revocation during inference; shared context changes during inference; racing executions yield one effect; durable restart; malformed/hostile output rejection; failed simulations do not commit; conflicting evidence cannot authorize execution.
 - HTTP tests: three independent authenticated sessions complete the joint workflow; cookie flags; unauthenticated access; CSRF/origin; actor spoofing; private response scope; cache prevention; host rebinding; static-file traversal/allowlist; body limits; logout.
@@ -48,3 +48,9 @@ Successful planning now records the application context passed to the shared pro
 Contributor-created team chats now support team messages that trigger coordination, role-scoped requests visible in private workspaces, and persisted owner-scoped private conversations with a model reply. Private user messages become versioned evidence; extraction proposes statements separately and still requires owner approval. Three additional tests cover contributor creation/delegation, private conversation isolation, viewer rejection, and revocation during a private reply. Chat remains scoped to the checkout domain. Each private send consumes one of the existing 20 evidence-note slots; it makes a conversational model call followed by a separate extraction request in the UI.
 
 Live browser verification: a team message created role-specific private requests. Muse Spark replied conversationally to an operations message containing a fake token, then extracted a rollback statement. The statement remained pending approval and the shared claims remained empty. The new chat HTTP routes also passed CSRF and cross-user isolation checks.
+
+## Unified agent audience isolation
+
+The same agent/task identity now supports team and private turns through one endpoint and one UI composer. The server projects the conversation for each viewer and each model audience. Tests verify that a private input and private model reply are absent from later team model contexts and other members' conversation responses, while private turns retain shared task context. Only approved typed contributions enter shared history. Invalid audiences, revoked membership, and HTTP cross-user reads are covered. This tests application information flow; it is not a formal proof of all possible inference channels or a claim of product uniqueness.
+
+Live unified-flow verification: Maya sent a private turn containing a synthetic marker, approved only the affected-segment statement, and switched the same composer to team scope. Muse Wonder continued from the approved fact and requested the remaining perspectives. Inspection of the persisted team-call context confirmed that the private marker and raw documents were absent. The live private reply used Muse Spark.
