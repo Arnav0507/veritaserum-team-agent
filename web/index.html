@@ -9,18 +9,9 @@
 </head>
 <body>
 <div id="login-view" class="login-layout">
-  <section class="intro">
-    <a class="brand" href="/">V<span>VERITASERUM</span></a>
-    <div class="eyebrow">SHARED WORK. PERSONAL BOUNDARIES.</div>
-    <h1>Bring your team<br>together.<br><em>Keep control.</em></h1>
-    <p>Collaborate with one shared agent. Work privately with your evidence, choose what your team can see, and make decisions together.</p>
-    <div class="intro-flow"><span>Think privately</span><b>→</b><span>Share deliberately</span><b>→</b><span>Act together</span></div>
-    <small>Early access · Local workspace · Checkout sandbox integration</small>
-  </section>
   <section class="login-card">
-    <span class="eyebrow">YOUR WORKSPACE</span>
-    <h2>Welcome back.</h2>
-    <p>Sign in to continue your team’s team chats.</p>
+    <a class="brand" href="/">V<span>VERITASERUM</span></a>
+    <h2>Sign in</h2>
     <form id="login-form">
       <label for="username">Username</label>
       <input id="username" autocomplete="username" maxlength="40" required autofocus>
@@ -29,11 +20,7 @@
       <button type="submit" class="primary">Sign in <span>↗</span></button>
     </form>
     <p id="login-error" role="alert"></p>
-    <details class="sample-access"><summary>Explore the sample workspace</summary>
-      <p class="hint">Synthetic accounts, available on this local installation. Select a role to fill its sample credentials.</p>
-      <div id="sample-accounts" class="sample-accounts"></div>
-      <p class="hint">Use separate browser profiles for simultaneous participants. This sample contains no real customer data.</p>
-    </details>
+
   </section>
 </div>
 <div id="workspace" hidden>
@@ -44,19 +31,15 @@
   </header>
   <main>
     <div class="room-heading">
-      <div><div class="eyebrow">TEAM CHAT <span id="revision"></span></div><h1 id="room-title">Your team chats</h1><p id="room-goal"></p></div>
+      <div><span id="revision" hidden></span><h1 id="room-title">Your team chats</h1><p id="room-goal"></p></div>
       <div id="health" class="health"></div>
     </div>
-    <div class="status-line"><span id="connection" role="status">Connecting…</span><details><summary>Runtime details</summary><p id="mode"></p><p class="hint">Repairs execute in the checkout sandbox. No production systems are connected.</p></details></div>
+    <div class="status-line"><span id="connection" role="status">Connecting…</span><details><summary>Connection details</summary><p id="mode"></p><p class="hint">Repairs execute in the checkout sandbox. No production systems are connected.</p></details></div>
     <div id="notice" role="status" aria-live="polite"></div>
-    <section class="next-step" aria-labelledby="next-title"><div><span class="eyebrow">YOUR NEXT STEP</span><h2 id="next-title"></h2><p id="next-description"></p></div><button id="next-action" class="primary"></button></section>
-    <ol id="progress" class="progress" aria-label="Team chat progress"></ol>
     <div class="columns">
       <aside class="private-panel">
-        <div class="panel-title"><div><span class="eyebrow">PRIVATE TO YOU</span><h2>Your evidence & approvals</h2></div><span class="lock" aria-hidden="true">◈</span></div>
-        <p class="muted">Your notes stay in your workspace. Your agent proposes statements for you to review before sharing.</p>
+        <div class="panel-title"><div><span class="eyebrow">PRIVATE TO YOU</span><h2>Evidence</h2></div><span class="lock" aria-hidden="true">◈</span></div>
         <div id="private-requests" class="agent-intro"></div>
-        <p class="hint">Private evidence and release approvals for this same conversation. Only you can see this panel.</p>
         <button id="add-note" class="secondary full">Add a private note</button>
         <div id="private-documents"></div>
         <button id="analyze" class="primary full">Review my evidence</button>
@@ -64,33 +47,31 @@
         <div id="proposals"></div>
       </aside>
       <section class="shared-panel">
-        <div class="panel-title"><div><span class="eyebrow">ONE AGENT · AUDIENCE-SCOPED CONTEXT</span><h2>Veritaserum</h2></div><span class="agent-mark" aria-hidden="true">✳</span></div>
-        <div class="conversation"><h3>Talk to the team agent</h3><div id="messages"></div>
+        <div class="panel-title"><div><h2>Veritaserum</h2></div><span class="agent-mark" aria-hidden="true">✳</span></div>
+        <div class="conversation"><div id="messages"></div>
           <form id="message-form">
-            <label for="audience">Who can see this message and the reply?</label>
+            <label for="audience">Audience</label>
             <select id="audience"><option value="team">Everyone in this team</option><option value="private">Only me and Veritaserum</option></select>
-            <label for="message">Message Veritaserum</label><textarea id="message" maxlength="2000" placeholder="Continue the shared task, or choose Only me for private evidence…" required></textarea>
+            <label for="message">Message Veritaserum</label><textarea id="message" maxlength="2000" placeholder="Message Veritaserum…" required></textarea>
             <p id="audience-hint" class="hint">This message and the reply are visible to everyone.</p>
             <button id="send-turn" type="submit" class="primary">Send to team</button>
           </form>
-          <p class="hint">One task, one agent. Private turns remain visible only to their author; approved statements can return to the team. The AI provider processes the context for the selected audience.</p>
         </div>
-        <div class="agent-intro"><strong id="agent-title"></strong><p id="agent-summary"></p><details><summary>Company knowledge</summary><p id="runbook"></p><button id="edit-knowledge" class="quiet">Update shared knowledge</button></details></div>
+        <div class="agent-intro"><details><summary>Company knowledge</summary><p id="runbook"></p><button id="edit-knowledge" class="quiet">Update shared knowledge</button></details></div>
         <div id="requirements" class="requirements"></div><div id="claims"></div>
         <button id="coordinate" class="primary full">Find a repair <span>↗</span></button>
         <div id="plan"></div>
 
       </section>
       <aside class="evidence-panel">
-        <div class="panel-title"><div><span class="eyebrow">EVIDENCE → DECISION → RESULT</span><h2>How we got here</h2></div></div>
-        <p class="muted">Select a step to see the approved evidence and observed results behind it.</p>
-        <div id="graph" class="graph"></div><div id="node-detail" class="node-detail" hidden></div>
+        <div class="panel-title"><div><h2>Activity</h2></div></div>
+        <details><summary>Decision history</summary><div id="graph" class="graph"></div><div id="node-detail" class="node-detail" hidden></div></details>
         <h3>Checkout sandbox</h3><div id="checks"></div>
         <details class="activity"><summary>Recent activity</summary><div id="activity"></div></details>
-        <h3>People in this team chat</h3><div id="members"></div>
+        <h3>Members</h3><div id="members"></div>
       </aside>
     </div>
-    <footer><span>Only statements you approve cross from your private workspace into the shared team chat.</span><span>Early access · Checkout sandbox</span></footer>
+
   </main>
 </div>
 <dialog id="note-dialog" aria-labelledby="note-heading">
@@ -103,11 +84,11 @@
 </dialog>
 <dialog id="room-dialog" aria-labelledby="room-heading">
   <form id="room-form"><div class="panel-title"><h2 id="room-heading">Start a team chat</h2><button type="button" class="quiet" data-close="room-dialog" aria-label="Close new team chat">×</button></div>
-    <p class="muted">Start with a fresh checkout sandbox and an empty evidence workspace for each person. Private notes from other team chats are never copied.</p>
+    <p class="muted">Connected workspace: checkout sandbox. No production access.</p>
     <label for="new-name">Name</label><input id="new-name" maxlength="80" placeholder="e.g. EU checkout failures" required>
     <label for="new-goal">What should the team resolve?</label><textarea id="new-goal" maxlength="1000" required placeholder="Describe the outcome and important constraints…"></textarea>
     <fieldset><legend>People to include</legend><div id="room-members"></div></fieldset>
-    <p class="hint">Choose support, engineering, and operations. Selected people can see everything shared in this new team chat.</p>
+    <p class="hint">Include support, engineering, and operations for checkout tasks. Members can read shared messages.</p>
     <p id="room-error" class="form-error" role="alert"></p><button class="primary full" type="submit">Create team chat</button>
   </form>
 </dialog>

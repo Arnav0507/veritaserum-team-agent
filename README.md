@@ -26,7 +26,7 @@ Open http://127.0.0.1:8787. Reference mode is explicitly labeled and reads `FACT
 
 ## Work with your team
 
-1. Sign in. The optional **Explore the sample workspace** section supplies synthetic accounts: `maya` / `maya-demo` (support), `eli` / `eli-demo` (engineering), `noor` / `noor-demo` (operations), and `alex` / `alex-demo` (observer).
+1. Sign in. For local evaluation, enter these synthetic accounts directly: `maya` / `maya-demo` (support), `eli` / `eli-demo` (engineering), `noor` / `noor-demo` (operations), and `alex` / `alex-demo` (observer).
 2. As a contributor, choose **New team chat**, describe the goal, and select participants from your existing team. Each team chat starts with separate evidence and history. The current integration requires support, engineering, and operations roles.
 3. Use the single **Message Veritaserum** composer. Choose **Everyone in this team** to coordinate, or **Only me and Veritaserum** for a private turn in the same task. Private messages and replies appear only in your conversation view; the server excludes them from team model calls. Private turns can prepare statements for approval. You can also add private notes and select **Review my evidence**. Review each proposed statement before sharing it. Other participants cannot read your source notes or pending proposals.
 4. The next-step guide shows which evidence is missing or conflicting. Once the team has aligned, **Find a repair** compares candidate actions against the checkout sandbox.
@@ -78,3 +78,5 @@ Source is publicly viewable; no open-source license is granted. Public availabil
 A turn has an explicit `team` or `private` audience. The server builds the context for that audience before inference; it never builds an omniscient prompt and asks the model to hide parts of it. Private turns receive shared history plus only their author's history and evidence. Team turns receive shared history and approved facts, never raw private turns. All turns retain the same task ID and agent identity. The conversation API returns a server-filtered projection for the authenticated member; a client cannot name another private recipient. Approval publishes a typed contribution into the shared conversation without copying the underlying private conversation.
 
 Model calls remain stateless and may use different configured models for conversation/extraction and tool planning. “One agent” means one task and conversation identity with controlled context, not one model call or an omniscient hidden state. Domain-specific routing and execution remain limited to checkout recovery.
+
+The interface prioritizes the conversation, audience selector, evidence approvals, and action results. Model architecture, evaluation instructions, and sample credentials are documented here rather than presented as onboarding banners.

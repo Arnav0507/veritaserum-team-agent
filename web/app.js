@@ -54,7 +54,6 @@ async function selectRoom(id) {
   if (busy || id === activeRoom) return;
   generation++; activeRoom = id; state = privateState = null; clearViews();
   $('message').value = ''; notice(''); $('room-title').textContent = 'Opening team chat…';
-  $('next-action').disabled = true;
   await refresh();
 }
 async function refresh(force = false) {
@@ -78,7 +77,7 @@ async function refresh(force = false) {
     state = next; privateState = priv; renderRooms();
     if (sharedChanged) { renderShared(); renderPrivate(); }
     if (privateChanged) renderPrivate();
-    renderNext();
+
     $('connection').textContent = '● Up to date'; $('connection').className = 'connected';
   } catch (e) {
     if (epoch !== generation) return;
@@ -114,7 +113,7 @@ async function act(op, body = {}, success = '', errorTarget = null) {
   } finally {
     if (epoch === generation) {
       setBusy(false);
-      if (state && privateState) { renderShared(); renderPrivate(); renderNext(); }
+      if (state && privateState) { renderShared(); renderPrivate(); }
       await refresh(true);
     }
   }
@@ -133,8 +132,9 @@ function renderPrivate() {
   renderConversation();
   const latestRequest = state.events.find(e => e.kind === 'delegated');
   const requested = (latestRequest?.payload.requests || []).filter(r => r.role === state.role && state.assessment.missing.includes(r.key));
+  $('private-requests').hidden = !requested.length;
   $('private-requests').replaceChildren(el('strong', requested.length ? 'Request from the team agent' : 'Your private workspace'),
-    el('p', requested.length ? requested.map(r => `Please help establish: ${r.label}. Discuss the evidence privately, then approve a statement for the team.`).join(' ') : 'Discuss your evidence here. Your replies and your agent’s responses stay private.'));
+    el('p', requested.length ? requested.map(r => `Requested: ${r.label}.`).join(' ') : 'Discuss your evidence here. Your replies and your agent’s responses stay private.'));
 
   const docs = $('private-documents'); docs.replaceChildren();
   for (const doc of privateState.documents) {
@@ -150,15 +150,15 @@ function renderPrivate() {
       const edit = drafts.get(key);
       if (!edit) return;
       const result = await act('document', {document_id: doc.id, body: edit.body, version: edit.version}, 'Private note updated. Earlier statements from this note need a new review.');
-      if (result) { drafts.delete(key); renderPrivate(); renderNext(); }
+      if (result) { drafts.delete(key); renderPrivate(); }
     });
     const discard = button('Discard draft', () => { drafts.delete(key); renderPrivate(); }, 'quiet');
     box.append(textarea, unsaved, save, discard); docs.append(box);
   }
-  if (!privateState.documents.length) docs.append(el('p', state.role === 'viewer' ? 'Observers can follow shared work. They do not contribute private evidence.' : 'Start with a note: an observation, customer report, or diagnostic result. It will be visible only to you.', 'empty-state'));
+  if (!privateState.documents.length) docs.append(el('p', state.role === 'viewer' ? 'Observers can follow shared work. They do not contribute private evidence.' : 'No private evidence yet.', 'empty-state'));
   $('add-note').hidden = state.role === 'viewer';
   $('analyze').disabled = state.role === 'viewer' || busy || !privateState.documents.length;
-  $('private-mode').textContent = state.providers.private.startsWith('live') ? 'Reviewing sends your saved notes to the configured AI provider. Proposed statements remain private until you share them.' : 'Reference mode reads explicit FACT lines from sample notes. Enable a live model to interpret natural language.';
+  $('private-mode').textContent = state.providers.private.startsWith('live') ? 'Analyzed by your configured AI provider. Sharing requires approval.' : 'Reference mode reads explicit FACT lines from sample notes. Enable a live model to interpret natural language.';
   const proposals = $('proposals'); proposals.replaceChildren();
   const current = privateState.proposals.filter(p => !p.stale);
   if (current.length) proposals.append(el('h3', 'Statements to review'));
@@ -180,25 +180,6 @@ function renderPrivate() {
     outdated.forEach(p => history.append(el('p', p.statement, 'muted'))); proposals.append(history);
   }
 }
-function renderNext() {
-  if (!state || !privateState) return;
-  const plan = state.plans[0], key = roleFacts[state.role];
-  const mine = privateState.proposals.some(p => !p.stale && !p.released);
-  let title, description, label, fn;
-  if (healthy()) { title = 'The repair is verified'; description = 'All checkout checks pass. The decision history preserves the evidence and approvals behind this result.'; label = 'See verification'; fn = () => $('checks').scrollIntoView({behavior: 'smooth', block: 'center'}); }
-  else if (state.role === 'viewer') { title = 'Follow the team chat'; description = 'You can read the shared evidence, decisions, and results. Contributors control their own disclosures.'; label = 'See shared evidence'; fn = () => $('claims').scrollIntoView({behavior: 'smooth'}); }
-  else if (!privateState.documents.length) { title = 'Continue privately with Veritaserum'; description = `Your team needs ${labels[key].toLowerCase()}. Add what you know; nothing is shared automatically.`; label = 'Start privately'; fn = () => ($('audience').value = 'private', $('audience').onchange(), $('message').focus()); }
-  else if (mine) { title = 'Choose what your team can see'; description = 'Your agent has proposed statements. Review their accuracy and share only what belongs in the team chat.'; label = 'Review statements'; fn = () => $('proposals').scrollIntoView({behavior: 'smooth', block: 'center'}); }
-  else if (state.assessment.missing.includes(key)) { title = 'Review your private evidence'; description = `Help the team understand ${labels[key].toLowerCase()}. Your agent will propose a statement for your approval.`; label = 'Review my evidence'; fn = () => $('analyze').click(); }
-  else if (state.assessment.conflicts.length) { title = 'Resolve conflicting statements'; description = 'Some shared statements disagree. Their owners should review the source notes and withdraw or update the conflicting evidence.'; label = 'Review shared evidence'; fn = () => $('claims').scrollIntoView({behavior: 'smooth'}); }
-  else if (state.assessment.missing.length) { title = 'Your contribution is shared'; description = `Waiting for ${state.assessment.missing.map(k => labels[k].toLowerCase()).join(' and ')}. You can keep investigating or leave a team note.`; label = 'Add a team note'; fn = () => $('message').focus(); }
-  else if (plan && plan.status === 'proposed' && !plan.stale) { title = state.role === 'operations' ? 'Review the proposed repair' : 'Waiting for operations approval'; description = 'The team agent compared candidate repairs. Operations can approve the specific action after reviewing its checks.'; label = 'Review repair'; fn = () => $('plan').scrollIntoView({behavior: 'smooth', block: 'center'}); }
-  else { title = plan?.stale ? 'Update the plan with current evidence' : 'The team is ready to investigate'; description = 'The required perspectives are shared. Ask the team agent to compare candidate repairs and propose a verified action.'; label = 'Find a repair'; fn = () => $('coordinate').click(); }
-  $('next-title').textContent = title; $('next-description').textContent = description;
-  $('next-action').textContent = label; $('next-action').onclick = fn; $('next-action').disabled = busy;
-  const step = healthy() ? 4 : plan && !plan.stale ? 3 : state.assessment.missing.length || state.assessment.conflicts.length ? 1 : 2;
-  $('progress').replaceChildren(...['Gather evidence', 'Share & align', 'Review a repair', 'Verify the outcome'].map((label, i) => el('li', `${i < step - 1 || healthy() ? '✓' : i + 1}  ${label}`, i < step ? 'complete' : '')));
-}
 function graphNode(title, type, record) {
   const b = button('', () => {
     const detail = $('node-detail'); detail.hidden = false; detail.replaceChildren(el('strong', title), el('p', type));
@@ -216,8 +197,6 @@ function renderShared() {
   $('identity').textContent = `${auth.name} · ${roleNames[state.role]}`;
   $('new-room').hidden = state.role === 'viewer'; $('edit-knowledge').hidden = state.role !== 'operations';
   const recovered = healthy();
-  $('agent-title').textContent = recovered ? 'The repair passed every check.' : 'Let’s find a repair the team can trust.';
-  $('agent-summary').textContent = recovered ? 'The approved repair was verified in the checkout sandbox. Its evidence and execution record are available below.' : state.assessment.conflicts.length ? 'The shared evidence conflicts. Resolve those statements before planning a repair.' : state.assessment.missing.length ? 'I can use the company runbook and the statements you share. I’m waiting for the team’s remaining perspectives.' : 'The required evidence is available. I can compare candidate repairs in the sandbox for your review.';
   $('health').textContent = recovered ? '● Verified in sandbox' : '● Team chat open'; $('health').className = recovered ? 'health good' : 'health';
   $('mode').textContent = `Private workers: ${state.providers.private}. Shared coordinator: ${state.providers.shared}.`;
   $('runbook').textContent = state.runbook;
@@ -226,7 +205,7 @@ function renderShared() {
     return el('span', `${ready ? '✓' : '○'} ${label}`, `requirement ${ready ? 'ready' : ''}`);
   }));
   const claims = $('claims'); claims.replaceChildren();
-  if (!state.claims.length) claims.append(el('p', 'No evidence has been shared yet. Each contributor decides what crosses from their private workspace.', 'empty-state'));
+  if (!state.claims.length) claims.append(el('p', 'No approved contributions yet.', 'empty-state'));
   for (const c of state.claims) {
     const box = el('div', undefined, 'claim');
     if (c.owner === auth.user) box.append(button('Withdraw', () => {
@@ -289,9 +268,6 @@ function renderShared() {
     }, 'quiet'));
     people.append(row);
   }
-}
-for (const [user, role] of [['maya', 'Support'], ['eli', 'Engineering'], ['noor', 'Operations'], ['alex', 'Observer']]) {
-  $('sample-accounts').append(button(`${user} · ${role}`, () => { $('username').value = user; $('password').value = `${user}-demo`; $('login-error').textContent = ''; }, 'secondary'));
 }
 $('login-form').onsubmit = async event => {
   event.preventDefault(); $('login-error').textContent = '';

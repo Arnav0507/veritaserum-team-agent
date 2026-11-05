@@ -753,3 +753,13 @@ dialog legend{
 .turn-private { background: #f1edf6; border-left: 3px solid #8d7ca4; padding: 12px; border-radius: 8px; }
 .turn-team { padding: 12px; border-left: 3px solid #9bb4a5; }
 .message small { display: block; margin-top: 4px; }
+.login-layout { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+.login-card { width: 100%; max-width: 420px; }
+.login-card .brand { margin-bottom: 28px; }
+.room-heading { margin-bottom: 12px; }
+.conversation { margin-top: 0; padding-top: 0; border-top: 0; }
+.evidence-panel > details { margin-bottom: 18px; }
+@media(max-width:720px) {
+  .shared-panel { grid-row: 1; }
+  .private-panel { grid-row: 2; }
+}
