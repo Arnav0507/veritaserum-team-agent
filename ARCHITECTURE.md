@@ -61,3 +61,11 @@ Beyond this milestone: connectors with per-user grants; department compartments;
 ## Originality and ownership
 
 This implementation is developed locally for this project. No exclusivity, patentability, or freedom-to-operate claim is made. Shared agents, access-controlled memory, capability gateways, and declassification have prior art (see COLLABORATION_OPPORTUNITY_RESEARCH.md). Product differentiation is the measured ability to complete useful joint work across boundaries. No open-source license is granted by this repository; dependencies retain their own licenses. Hackathon public-submission requirements must be reconciled separately before publication.
+
+## Investigation lifecycle
+
+Operations can create an investigation by explicitly selecting active members from an investigation they administer. Creation copies membership only, never private documents or approved disclosures. Room-scoped goals and company knowledge persist with additive migrations for existing databases. Private document creation is owner-scoped and bounded to 20 documents per owner per investigation.
+
+Company-knowledge edits use a revision precondition and invalidate pending plans. Planning events retain the knowledge snapshot used for that decision. Re-sharing a withdrawn statement requires fresh explicit owner approval and a still-current source version; it does not revive an older plan. Duplicate model calls are rejected while an equivalent worker is in flight within the process. This is not a durable distributed job queue.
+
+The browser keeps unsaved private-note edits only in memory, preserving them across shared refreshes while clearing them on logout. Investigation changes clear rendered private state before the next fetch. Role-specific next-step guidance reflects missing evidence, conflicts, approval, and verification. Recent activity is bounded; the database retains the underlying record.

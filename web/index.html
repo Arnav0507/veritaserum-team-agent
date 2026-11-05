@@ -1,23 +1,114 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Veritaserum — shared work, private evidence</title><link rel="stylesheet" href="/style.css"><script defer src="/app.js"></script></head>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Veritaserum — your team’s shared workspace</title>
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="/app.js"></script>
+</head>
 <body>
 <div id="login-view" class="login-layout">
-  <section class="intro"><a class="brand" href="/">V<span>VERITASERUM</span></a><div class="eyebrow">A TEAM. ONE AGENT. DISTINCT BOUNDARIES.</div><h1>Work together.<br>Keep what’s private,<br><em>private.</em></h1><p>A shared incident agent brings the right evidence together. Your private worker helps you decide exactly what crosses the boundary.</p><div class="intro-flow"><span>Private evidence</span><b>→</b><span>Your approval</span><b>→</b><span>Joint result</span></div><small>Local prototype · Synthetic incident · No production systems connected</small></section>
-  <section class="login-card"><span class="eyebrow">CHECKOUT RECOVERY ROOM</span><h2>Take your seat.</h2><p>Three perspectives. One verified repair.</p><form id="login-form"><label for="user">Demo participant</label><select id="user"><option value="maya">Maya · Support</option><option value="eli">Eli · Engineering</option><option value="noor">Noor · Operations</option><option value="alex">Alex · Observer</option><option value="custom">Another provisioned participant</option></select><div id="custom-login" hidden><label for="custom-user">Username</label><input id="custom-user" autocomplete="username" maxlength="40"></div><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" value="maya-demo" required><button type="submit" class="primary">Enter incident room <span>↗</span></button></form><p class="hint">Synthetic accounts use <code>name-demo</code>. Use separate browser profiles for simultaneous participants, or sign out to change seats.</p><p id="login-error" role="alert"></p></section>
+  <section class="intro">
+    <a class="brand" href="/">V<span>VERITASERUM</span></a>
+    <div class="eyebrow">SHARED WORK. PERSONAL BOUNDARIES.</div>
+    <h1>Bring your team<br>together.<br><em>Keep control.</em></h1>
+    <p>Investigate with one shared agent. Work privately with your evidence, choose what your team can see, and make decisions together.</p>
+    <div class="intro-flow"><span>Investigate privately</span><b>→</b><span>Share deliberately</span><b>→</b><span>Act together</span></div>
+    <small>Early access · Local workspace · Checkout sandbox integration</small>
+  </section>
+  <section class="login-card">
+    <span class="eyebrow">YOUR WORKSPACE</span>
+    <h2>Welcome back.</h2>
+    <p>Sign in to continue your team’s investigations.</p>
+    <form id="login-form">
+      <label for="username">Username</label>
+      <input id="username" autocomplete="username" maxlength="40" required autofocus>
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" required>
+      <button type="submit" class="primary">Sign in <span>↗</span></button>
+    </form>
+    <p id="login-error" role="alert"></p>
+    <details class="sample-access"><summary>Explore the sample workspace</summary>
+      <p class="hint">Synthetic accounts, available on this local installation. Select a role to fill its sample credentials.</p>
+      <div id="sample-accounts" class="sample-accounts"></div>
+      <p class="hint">Use separate browser profiles for simultaneous participants. This sample contains no real customer data.</p>
+    </details>
+  </section>
 </div>
 <div id="workspace" hidden>
-  <header><a class="brand" href="/">V<span>VERITASERUM</span></a><div class="header-center"><span class="live-dot"></span> Shared incident room <span id="revision"></span></div><div class="identity"><span id="identity"></span><button id="logout" class="quiet">Sign out</button></div></header>
+  <header>
+    <a class="brand" href="/">V<span>VERITASERUM</span></a>
+    <div class="header-center"><label class="sr-only" for="room-select">Investigation</label><select id="room-select"></select><button id="new-room" class="secondary">New investigation</button></div>
+    <div class="identity"><span id="identity"></span><button id="logout" class="quiet">Sign out</button></div>
+  </header>
   <main>
-    <div class="room-heading"><div><div class="eyebrow">INCIDENT / CHECKOUT-042</div><h1>Recover checkout. Together.</h1><p>Combine evidence across boundaries. Verify the repair before it becomes shared state.</p></div><div id="health" class="health"></div></div>
-    <div class="mode" id="mode"></div>
-    <div id="notice" role="status" aria-live="polite"></div>
-    <div class="columns">
-      <aside class="private-panel"><div class="panel-title"><div><span class="eyebrow">ONLY YOU</span><h2>Your private workspace</h2></div><span class="lock">◈</span></div><p class="muted">Source notes stay here. Only exact statements you approve enter the room.</p><div id="private-documents"></div><button id="analyze" class="secondary full">Ask my private agent</button><p class="hint" id="private-mode"></p><div id="proposals"></div></aside>
-      <section class="shared-panel"><div class="panel-title"><div><span class="eyebrow">VISIBLE TO EVERY ROOM MEMBER</span><h2>The team’s agent</h2></div><span class="agent-mark">✳</span></div><div class="agent-intro"><strong id="agent-title">Let’s restore checkout without losing data.</strong><p id="agent-summary">I know the company runbook. I need three approved facts before I can propose a safe repair.</p><details><summary>Company knowledge</summary><p id="runbook"></p></details></div><div id="requirements" class="requirements"></div><div id="claims"></div><button id="coordinate" class="primary full">Coordinate next step <span>↗</span></button><div id="plan"></div><div class="conversation"><h3>Team notes</h3><div id="messages"></div><form id="message-form"><label class="sr-only" for="message">Message to everyone in this room</label><input id="message" maxlength="2000" placeholder="Write a note visible to the whole room…" required><button type="submit" class="secondary">Send</button></form><p class="hint">Notes are public in this room. New notes invalidate pending plans.</p></div></section>
-      <aside class="evidence-panel"><div class="panel-title"><div><span class="eyebrow">OBSERVED, NOT INFERRED</span><h2>Decision trail</h2></div></div><p class="muted">Explore the evidence behind the action. No private sources appear in this graph.</p><div id="graph" class="graph"></div><div id="node-detail" class="node-detail" hidden></div><h3>Live checkout checks</h3><div id="checks"></div><details class="activity"><summary>Shared activity log</summary><div id="activity"></div></details><h3>In this room</h3><div id="members"></div></aside>
+    <div class="room-heading">
+      <div><div class="eyebrow">TEAM INVESTIGATION <span id="revision"></span></div><h1 id="room-title">Your investigations</h1><p id="room-goal"></p></div>
+      <div id="health" class="health"></div>
     </div>
-    <footer>Private evidence → explicit disclosure → shared decision → verified action <span>Simulator only · application-level isolation</span></footer>
+    <div class="status-line"><span id="connection" role="status">Connecting…</span><details><summary>Runtime details</summary><p id="mode"></p><p class="hint">Repairs execute in the checkout sandbox. No production systems are connected.</p></details></div>
+    <div id="notice" role="status" aria-live="polite"></div>
+    <section class="next-step" aria-labelledby="next-title"><div><span class="eyebrow">YOUR NEXT STEP</span><h2 id="next-title"></h2><p id="next-description"></p></div><button id="next-action" class="primary"></button></section>
+    <ol id="progress" class="progress" aria-label="Investigation progress"></ol>
+    <div class="columns">
+      <aside class="private-panel">
+        <div class="panel-title"><div><span class="eyebrow">PRIVATE TO YOU</span><h2>Your evidence</h2></div><span class="lock" aria-hidden="true">◈</span></div>
+        <p class="muted">Your notes stay in your workspace. Your agent proposes statements for you to review before sharing.</p>
+        <button id="add-note" class="secondary full">Add a private note</button>
+        <div id="private-documents"></div>
+        <button id="analyze" class="primary full">Review my evidence</button>
+        <p class="hint" id="private-mode"></p>
+        <div id="proposals"></div>
+      </aside>
+      <section class="shared-panel">
+        <div class="panel-title"><div><span class="eyebrow">SHARED WITH THIS TEAM</span><h2>The team’s agent</h2></div><span class="agent-mark" aria-hidden="true">✳</span></div>
+        <div class="agent-intro"><strong id="agent-title"></strong><p id="agent-summary"></p><details><summary>Company knowledge</summary><p id="runbook"></p><button id="edit-knowledge" class="quiet">Update shared knowledge</button></details></div>
+        <div id="requirements" class="requirements"></div><div id="claims"></div>
+        <button id="coordinate" class="primary full">Find a repair <span>↗</span></button>
+        <div id="plan"></div>
+        <div class="conversation"><h3>Team notes</h3><div id="messages"></div>
+          <form id="message-form"><label class="sr-only" for="message">Message to everyone in this investigation</label><input id="message" maxlength="2000" placeholder="Share an update with the team…" required><button type="submit" class="secondary">Send</button></form>
+          <p class="hint">Everyone in this investigation can read these notes. New instructions require the agent to reconsider a pending plan.</p>
+        </div>
+      </section>
+      <aside class="evidence-panel">
+        <div class="panel-title"><div><span class="eyebrow">EVIDENCE → DECISION → RESULT</span><h2>How we got here</h2></div></div>
+        <p class="muted">Select a step to see the approved evidence and observed results behind it.</p>
+        <div id="graph" class="graph"></div><div id="node-detail" class="node-detail" hidden></div>
+        <h3>Checkout sandbox</h3><div id="checks"></div>
+        <details class="activity"><summary>Recent activity</summary><div id="activity"></div></details>
+        <h3>People in this investigation</h3><div id="members"></div>
+      </aside>
+    </div>
+    <footer><span>Only statements you approve cross from your private workspace into the shared investigation.</span><span>Early access · Checkout sandbox</span></footer>
   </main>
 </div>
-</body></html>
+<dialog id="note-dialog" aria-labelledby="note-heading">
+  <form id="note-form"><div class="panel-title"><h2 id="note-heading">Add private evidence</h2><button type="button" class="quiet" data-close="note-dialog" aria-label="Close private note">×</button></div>
+    <p class="muted">Only you can read this note. Saving does not send it to the model or share it with the team.</p>
+    <label for="note-title">Title</label><input id="note-title" maxlength="120" required placeholder="e.g. Customer escalation, Nov 4">
+    <label for="note-body">Evidence</label><textarea id="note-body" maxlength="16000" required placeholder="Paste relevant observations, logs, or investigation notes…"></textarea>
+    <p id="note-error" class="form-error" role="alert"></p><button class="primary full" type="submit">Save private note</button>
+  </form>
+</dialog>
+<dialog id="room-dialog" aria-labelledby="room-heading">
+  <form id="room-form"><div class="panel-title"><h2 id="room-heading">Start an investigation</h2><button type="button" class="quiet" data-close="room-dialog" aria-label="Close new investigation">×</button></div>
+    <p class="muted">Start with a fresh checkout sandbox and an empty evidence workspace for each person. Private notes from other investigations are never copied.</p>
+    <label for="new-name">Name</label><input id="new-name" maxlength="80" placeholder="e.g. EU checkout failures" required>
+    <label for="new-goal">What should the team resolve?</label><textarea id="new-goal" maxlength="1000" required placeholder="Describe the outcome and important constraints…"></textarea>
+    <fieldset><legend>People to include</legend><div id="room-members"></div></fieldset>
+    <p class="hint">Choose support, engineering, and operations. Selected people can see everything shared in this new investigation.</p>
+    <p id="room-error" class="form-error" role="alert"></p><button class="primary full" type="submit">Create investigation</button>
+  </form>
+</dialog>
+<dialog id="knowledge-dialog" aria-labelledby="knowledge-heading">
+  <form id="knowledge-form"><div class="panel-title"><h2 id="knowledge-heading">Shared company knowledge</h2><button type="button" class="quiet" data-close="knowledge-dialog" aria-label="Close company knowledge">×</button></div>
+    <p class="muted">Visible to everyone in this investigation and its shared agent. Keep personal or restricted information in your private notes.</p>
+    <label for="knowledge-body">Runbook and team context</label><textarea id="knowledge-body" maxlength="12000" required></textarea>
+    <p class="hint">Updating this context invalidates pending plans. Runtime permissions and supported actions do not change.</p>
+    <p id="knowledge-error" class="form-error" role="alert"></p><button class="primary full" type="submit">Save shared knowledge</button>
+  </form>
+</dialog>
+</body>
+</html>

@@ -7,7 +7,7 @@ import sqlite3
 import time
 from pathlib import Path
 
-from .policy import INITIAL_CONFIG
+from .policy import INITIAL_CONFIG, RUNBOOK
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY, name TEXT NOT NULL, password TEXT NOT NULL);
@@ -60,6 +60,14 @@ class Store:
         with contextlib.closing(self.connect()) as db:
             db.execute("PRAGMA journal_mode=WAL")
             db.executescript(SCHEMA)
+        # Forward-only, additive migration; preserve existing evidence and sessions.
+        with self.tx() as db:
+            columns = {row[1] for row in db.execute("PRAGMA table_info(rooms)")}
+            if "goal" not in columns:
+                db.execute("ALTER TABLE rooms ADD COLUMN goal TEXT NOT NULL DEFAULT 'Restore checkout while preserving data compatibility.'")
+            if "runbook" not in columns:
+                db.execute("ALTER TABLE rooms ADD COLUMN runbook TEXT NOT NULL DEFAULT ''")
+                db.execute("UPDATE rooms SET runbook=?", (RUNBOOK,))
 
     def connect(self):
         db = sqlite3.connect(self.path, timeout=10, isolation_level=None)

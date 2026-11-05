@@ -1,8 +1,9 @@
 import json
 import time
 import secrets
+import threading
 
-from .policy import FACTS, RUNBOOK, ACTIONS, assess, statement, simulate, verify
+from .policy import FACTS, RUNBOOK, ACTIONS, INITIAL_CONFIG, assess, statement, simulate, verify
 from .providers import ReferenceProvider, ProviderError
 from .store import check_password, password_hash, token_hash, identifier, event
 
@@ -33,6 +34,73 @@ class Service:
         self.private_provider = private_provider or ReferenceProvider()
         self.shared_provider = shared_provider or ReferenceProvider()
         self.dummy_password = password_hash("nonexistent-account")
+        self._inflight = set()
+        self._inflight_lock = threading.Lock()
+
+    def _infer(self, scope, fn, context):
+        with self._inflight_lock:
+            if scope in self._inflight:
+                raise Fault(429, "An agent is already working on this request. Wait for it to finish before trying again.")
+            self._inflight.add(scope)
+        try:
+            return fn(context)
+        except ProviderError as exc:
+            raise Fault(502, str(exc)) from None
+        finally:
+            with self._inflight_lock:
+                self._inflight.discard(scope)
+
+    def list_rooms(self, actor):
+        with self.store.tx() as db:
+            return {"rooms": [dict(r) for r in db.execute(
+                "SELECT r.id,r.name,r.goal,m.role FROM rooms r JOIN members m ON m.room=r.id "
+                "WHERE m.user=? AND m.active=1 ORDER BY r.rowid DESC", (actor,))]}
+
+    def create_room(self, actor, source_room, name, goal, users):
+        if (not isinstance(name, str) or not 1 <= len(name.strip()) <= 80
+                or not isinstance(goal, str) or not 1 <= len(goal.strip()) <= 1000
+                or not isinstance(users, list) or not 1 <= len(users) <= 30
+                or not all(isinstance(u, str) for u in users)):
+            raise Fault(400, "Provide a name, a goal, and 1–30 team members")
+        with self.store.tx() as db:
+            member(db, source_room, actor, {"operations"})
+            selected = set(users) | {actor}
+            people = [member(db, source_room, user) for user in selected]
+            if not FACTS_ROLES.issubset({p["role"] for p in people}):
+                raise Fault(400, "Include support, engineering, and operations to complete this workflow")
+            room = identifier()
+            db.execute("INSERT INTO rooms(id,name,goal,runbook,config) VALUES(?,?,?,?,?)",
+                       (room, name.strip(), goal.strip(), RUNBOOK, json.dumps(INITIAL_CONFIG)))
+            for p in people:
+                db.execute("INSERT INTO members(room,user,role) VALUES(?,?,?)", (room, p["user"], p["role"]))
+            event(db, room, actor, "opened", {"name": name.strip(), "goal": goal.strip()})
+            return {"id": room}
+
+    def add_document(self, room, actor, title, body):
+        if (not isinstance(title, str) or not 1 <= len(title.strip()) <= 120
+                or not isinstance(body, str) or not 1 <= len(body.strip()) <= 16000):
+            raise Fault(400, "Give the note a title (up to 120 characters) and text (up to 16000 characters)")
+        with self.store.tx() as db:
+            member(db, room, actor, FACTS_ROLES)
+            count = db.execute("SELECT count(*) FROM documents WHERE room=? AND owner=?", (room, actor)).fetchone()[0]
+            if count >= 20:
+                raise Fault(400, "This workspace supports 20 private notes per person. Edit an existing note.")
+            did = identifier()
+            db.execute("INSERT INTO documents(id,room,owner,title,body) VALUES(?,?,?,?,?)",
+                       (did, room, actor, title.strip(), body))
+            return {"id": did}
+
+    def update_knowledge(self, room, actor, runbook, revision):
+        if not isinstance(runbook, str) or not 1 <= len(runbook.strip()) <= 12000 or type(revision) is not int:
+            raise Fault(400, "Company knowledge must contain 1–12000 characters and a current revision")
+        with self.store.tx() as db:
+            member(db, room, actor, {"operations"})
+            current = db.execute("SELECT revision FROM rooms WHERE id=?", (room,)).fetchone()[0]
+            if current != revision:
+                raise Fault(409, "The investigation changed. Review the latest state before saving company knowledge.")
+            db.execute("UPDATE rooms SET runbook=? WHERE id=?", (runbook.strip(), room))
+            event(db, room, actor, "knowledge_updated", {"runbook": runbook.strip()})
+            return {"ok": True}
 
     def login(self, user, password):
         if not isinstance(user, str) or not isinstance(password, str) or len(password) > 256:
@@ -80,10 +148,10 @@ class Service:
             people = [dict(r) for r in db.execute("SELECT m.user,u.name,m.role FROM members m JOIN users u "
                                                  "ON m.user=u.id WHERE room=? AND active=1", (room,))]
             config = json.loads(state["config"])
-            return {"id": room, "name": state["name"], "revision": state["revision"],
+            return {"id": room, "name": state["name"], "goal": state["goal"], "revision": state["revision"],
                     "role": membership["role"], "members": people, "claims": claims,
                     "plans": plans, "events": events, "assessment": assess(claims),
-                    "runbook": RUNBOOK, "config": config, "checks": verify(config),
+                    "runbook": state["runbook"], "config": config, "checks": verify(config),
                     "providers": {"private": self.private_provider.mode, "shared": self.shared_provider.mode}}
 
     def private_state(self, room, actor):
@@ -96,6 +164,9 @@ class Service:
                        "WHERE p.room=? AND p.owner=? ORDER BY p.created DESC LIMIT 40", (room, actor))]
             for p in proposals:
                 p["statement"] = statement(p["key"], p["value"])
+                source = next((d for d in docs if d["id"] == p["source_id"]), None)
+                p["stale"] = not source or source["version"] != p["source_version"]
+                p["source_title"] = source["title"] if source else "Unavailable source"
             return {"documents": docs, "proposals": proposals}
 
     def analyze(self, room, actor):
@@ -104,12 +175,11 @@ class Service:
             docs = [dict(r) for r in db.execute("SELECT id,title,body,version FROM documents WHERE room=? AND owner=?",
                                                (room, actor))]
             allowed = {k: v for k, v in FACTS.items() if v["role"] == m["role"]}
+            if not docs:
+                raise Fault(400, "Add a private note before asking your agent to review it")
             context = {"task": "Find the requested incident facts for optional disclosure to this room.",
                        "allowed_facts": allowed, "documents": docs}
-        try:
-            output = self.private_provider.private(context)
-        except ProviderError as exc:
-            raise Fault(502, str(exc)) from None
+        output = self._infer(("private", room, actor), self.private_provider.private, context)
         sources = {d["id"]: d["version"] for d in docs}
         if (not isinstance(output, dict) or set(output) != {"proposals"}
                 or not isinstance(output["proposals"], list) or len(output["proposals"]) > 8):
@@ -154,7 +224,9 @@ class Service:
             old = db.execute("SELECT id,active FROM disclosures WHERE proposal=?", (proposal_id,)).fetchone()
             if old:
                 if not old["active"]:
-                    raise Fault(409, "This disclosure was withdrawn; create new evidence before sharing again")
+                    db.execute("UPDATE disclosures SET active=1 WHERE id=?", (old["id"],))
+                    event(db, room, actor, "disclosed", {"id": old["id"], "key": p["key"], "value": p["value"],
+                                                       "statement": statement(p["key"], p["value"]), "reshared": True})
                 return {"id": old["id"]}
             did = identifier()
             db.execute("INSERT INTO disclosures(id,room,owner,proposal,key,value,created) VALUES(?,?,?,?,?,?,?)",
@@ -187,14 +259,11 @@ class Service:
                             for key in assessment["missing"]]
                 event(db, room, actor, "delegated", {"requests": requests, "conflicts": assessment["conflicts"]})
                 return {"status": "needs_evidence", "requests": requests, "conflicts": assessment["conflicts"]}
-            context = {"company_knowledge": RUNBOOK,
+            context = {"company_knowledge": r["runbook"], "goal": r["goal"],
                        "disclosures": [{"id": c["id"], "key": c["key"], "value": c["value"]} for c in claims],
                        "simulator": json.loads(r["config"]),
                        "eligible_actions": assessment["eligible"]}
-        try:
-            output = self.shared_provider.shared(context)
-        except ProviderError as exc:
-            raise Fault(502, str(exc)) from None
+        output = self._infer(("shared", room), self.shared_provider.shared, context)
         if (not isinstance(output, dict) or set(output) != {"action"}
                 or (output["action"] is not None and output["action"] not in assessment["eligible"])):
             raise Fault(502, "Coordinator proposed an unauthorized action")
@@ -209,6 +278,7 @@ class Service:
             pid = identifier()
             comparisons = [simulate(json.loads(r["config"]), action)[1] for action in ACTIONS]
             revision = event(db, room, actor, "planned", {"id": pid, "action": output["action"],
+                                                         "company_knowledge": r["runbook"], "goal": r["goal"],
                                                          "comparisons": comparisons,
                                                          "model": self.shared_provider.mode,
                                                          "evidence": [c["id"] for c in claims]})

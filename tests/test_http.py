@@ -54,6 +54,27 @@ class HttpTests(unittest.TestCase):
     def test_unauthenticated_reads_denied(self):
         self.assertEqual(self.request("/api/rooms/checkout/private")[0], 401)
         self.assertEqual(self.request("/api/rooms/checkout/state")[0], 401)
+        self.assertEqual(self.request("/api/rooms")[0], 401)
+
+    def test_new_investigation_private_note_and_knowledge_http(self):
+        cookie, csrf = self.login("noor")
+        body = {"source_room": "checkout", "name": "HTTP investigation", "goal": "Restore checkout",
+                "members": ["maya", "eli", "noor"]}
+        self.assertEqual(self.request("/api/rooms", body, cookie)[0], 403)
+        status, _, created = self.request("/api/rooms", body, cookie, csrf)
+        self.assertEqual(status, 200)
+        room = created["id"]
+        base = f"/api/rooms/{room}"
+        self.assertEqual(self.request(base + "/add-document", {"title": "Private title", "body": "Private contents"}, cookie, csrf)[0], 200)
+        status, _, shared = self.request(base + "/state", cookie=cookie)
+        self.assertEqual(status, 200)
+        self.assertNotIn("Private title", json.dumps(shared))
+        self.assertEqual(self.request(base + "/knowledge", {"runbook": "Shared runbook", "revision": shared["revision"]}, cookie, csrf)[0], 200)
+        viewer, _ = self.login("alex")
+        self.assertEqual(self.request(base + "/state", cookie=viewer)[0], 403)
+        self.assertNotIn(room, json.dumps(self.request("/api/rooms", cookie=viewer)[2]))
+        member, _ = self.login("maya")
+        self.assertEqual(self.request(base + "/private", cookie=member)[2]["documents"], [])
 
     def test_csrf_and_origin_required(self):
         cookie, csrf = self.login("maya")

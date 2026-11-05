@@ -6,7 +6,7 @@ Local single-host prototype with synthetic checkout evidence. Tests exercise the
 
 ## Completed evidence
 
-Automated suite includes 39 tests after the live Meta protocol correction. JavaScript syntax and Python compilation checks also passed. Tests run with ResourceWarning promoted to an error.
+Automated suite includes 49 tests after the investigation and evidence lifecycle changes. JavaScript syntax and Python compilation checks also passed. Tests run with ResourceWarning promoted to an error.
 
 - Domain tests: three-person successful repair; private notes and source IDs absent from shared responses/model context; unapproved drafts stay private; cross-owner and cross-room denial; contributor/viewer restrictions; stale source revisions; withdrawal; revocation during inference; shared context changes during inference; racing executions yield one effect; durable restart; malformed/hostile output rejection; failed simulations do not commit; conflicting evidence cannot authorize execution.
 - HTTP tests: three independent authenticated sessions complete the joint workflow; cookie flags; unauthenticated access; CSRF/origin; actor spoofing; private response scope; cache prevention; host rebinding; static-file traversal/allowlist; body limits; logout.
@@ -30,3 +30,9 @@ The reference worker parses explicit fact lines, while the live adapter asks a m
 python3 -W error::ResourceWarning -m unittest discover -s tests -v
 node --check web/app.js
 ```
+
+## Product workflow verification
+
+A new investigation was created through the browser, with private notes authored separately as support, engineering, and operations. Each person reviewed and released their statement; the shared agent proposed a repair and operations applied it with all four checks passing. Source-note visibility, withdrawal/re-sharing, and retention of unsaved private edits during shared updates were checked. This run used the deterministic reference provider.
+
+The updated interface was inspected at 1440px and 390px with no horizontal overflow. Product screenshot: `artifacts/product_workspace.png`.

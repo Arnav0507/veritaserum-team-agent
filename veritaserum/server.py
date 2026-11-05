@@ -132,6 +132,11 @@ class Handler(BaseHTTPRequestHandler):
                 s.logout(self.token())
                 self.reply(200, {"ok": True}, cookie="vt_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0")
                 return
+            if path == "/api/rooms":
+                result = s.create_room(auth["user"], required_string(body, "source_room"), body.get("name"),
+                                       body.get("goal"), body.get("members")) if mutation else s.list_rooms(auth["user"])
+                self.reply(200, result)
+                return
             parts = path.strip("/").split("/")
             if len(parts) != 4 or parts[:2] != ["api", "rooms"]:
                 raise Fault(404, "Not found")
@@ -151,6 +156,8 @@ class Handler(BaseHTTPRequestHandler):
                     "message": lambda: s.message(room, actor, body.get("text")),
                     "document": lambda: s.update_document(room, actor, required_string(body, "document_id"),
                                                            body.get("body"), body.get("version")),
+                    "add-document": lambda: s.add_document(room, actor, body.get("title"), body.get("body")),
+                    "knowledge": lambda: s.update_knowledge(room, actor, body.get("runbook"), body.get("revision")),
                     "revoke": lambda: s.revoke(room, actor, required_string(body, "user")),
                 }
                 if operation not in routes:
