@@ -4,7 +4,7 @@
 
 Veritaserum is a collaborative incident workspace for support, engineering, and operations. People investigate with private evidence workers, review the exact statements they want to share, and let a shared agent combine those statements into a proposed repair. Operations approves the action; the runtime checks permissions, evidence freshness, and the repair’s outcome before applying it.
 
-The first integration is a checkout sandbox. This is an early local product: persistent investigations and user-authored evidence work today; production incident execution and company connectors are future work.
+The first integration is a checkout sandbox. This is an early local product: persistent team chats and user-authored evidence work today; production incident execution and company connectors are future work.
 
 ## Start a workspace
 
@@ -27,24 +27,24 @@ Open http://127.0.0.1:8787. Reference mode is explicitly labeled and reads `FACT
 ## Work with your team
 
 1. Sign in. The optional **Explore the sample workspace** section supplies synthetic accounts: `maya` / `maya-demo` (support), `eli` / `eli-demo` (engineering), `noor` / `noor-demo` (operations), and `alex` / `alex-demo` (observer).
-2. As operations, choose **New investigation**, describe the goal, and select participants from your existing team. Each investigation starts with separate evidence and history. The current integration requires support, engineering, and operations roles.
-3. Add private notes and select **Review my evidence**. Review each proposed statement before sharing it. Other participants cannot read your source notes or pending proposals.
+2. As a contributor, choose **New team chat**, describe the goal, and select participants from your existing team. Each team chat starts with separate evidence and history. The current integration requires support, engineering, and operations roles.
+3. Send a message in **Team chat** to request coordination. Missing perspectives appear in the relevant private workspaces. Message **Your private agent** to discuss evidence; its reply stays private and the app prepares statements for review. You can also add private notes and select **Review my evidence**. Review each proposed statement before sharing it. Other participants cannot read your source notes or pending proposals.
 4. The next-step guide shows which evidence is missing or conflicting. Once the team has aligned, **Find a repair** compares candidate actions against the checkout sandbox.
 5. Operations reviews the results and selects **Approve & apply in sandbox**. Every check must pass before the configuration changes. The decision trail links approved evidence, the decision, and observed results.
 
-You can switch investigations, edit company knowledge, update private evidence, withdraw statements, and remove access. Changed evidence or shared context invalidates pending plans. Withdrawing a statement prevents future use; it cannot erase information already shared. Unsaved note edits survive in-page updates but are discarded on logout or page reload.
+You can switch team chats, edit company knowledge, update private evidence, withdraw statements, and remove access. Changed evidence or shared context invalidates pending plans. Withdrawing a statement prevents future use; it cannot erase information already shared. Unsaved note edits survive in-page updates but are discarded on logout or page reload.
 
 Separate people should use separate browser profiles or clients: tabs in one profile share login cookies. The server binds only to localhost and is not a hosted team service yet.
 
 ## Add participants
 
-A local administrator provisions accounts into an existing investigation. Use the same database path as the server:
+A local administrator provisions accounts into an existing team chat. Use the same database path as the server:
 
 ```sh
 python3 -m veritaserum.admin --db data/veritaserum.sqlite --room checkout --user sam --name "Sam Lee" --role engineering
 ```
 
-The password is collected privately. Optionally add `--document /absolute/path/to/note.txt`. Members can see that investigation’s existing shared history, but receive their own private compartment. There is no four-person limit; roles currently remain support, engineering, operations, and viewer. Account invitations and SSO are not implemented.
+The password is collected privately. Optionally add `--document /absolute/path/to/note.txt`. Members can see that team chat’s existing shared history, but receive their own private compartment. There is no four-person limit; roles currently remain support, engineering, operations, and viewer. Account invitations and SSO are not implemented.
 
 ## Boundary by construction
 

@@ -45,7 +45,7 @@ class ProductWorkflowTests(unittest.TestCase):
         self.fault(400, self.s.analyze, room, 'maya')
 
     def test_creation_cannot_borrow_authority_or_add_an_unrelated_user(self):
-        self.fault(403, self.s.create_room, 'maya', 'checkout', 'Name', 'Goal', ['maya', 'eli', 'noor'])
+        self.fault(403, self.s.create_room, 'alex', 'checkout', 'Name', 'Goal', ['maya', 'eli', 'noor'])
         self.fault(403, self.s.create_room, 'noor', 'checkout', 'Name', 'Goal', ['outsider'])
         self.fault(400, self.s.create_room, 'noor', 'checkout', 'Name', 'Goal', ['noor'])
         self.fault(400, self.s.create_room, 'noor', 'checkout', 'Name', 'Goal', [['noor']])

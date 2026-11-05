@@ -32,6 +32,9 @@ CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT, room TEX
  UNIQUE(room,revision));
 CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, user TEXT NOT NULL REFERENCES users(id),
  csrf TEXT NOT NULL, expires REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS private_messages(id INTEGER PRIMARY KEY AUTOINCREMENT,
+ room TEXT NOT NULL REFERENCES rooms(id), owner TEXT NOT NULL REFERENCES users(id),
+ speaker TEXT NOT NULL, text TEXT NOT NULL, created REAL NOT NULL);
 CREATE INDEX IF NOT EXISTS documents_scope ON documents(room,owner);
 CREATE INDEX IF NOT EXISTS proposals_scope ON proposals(room,owner);
 CREATE INDEX IF NOT EXISTS disclosures_scope ON disclosures(room,active);

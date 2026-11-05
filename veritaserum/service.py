@@ -63,7 +63,7 @@ class Service:
                 or not all(isinstance(u, str) for u in users)):
             raise Fault(400, "Provide a name, a goal, and 1–30 team members")
         with self.store.tx() as db:
-            member(db, source_room, actor, {"operations"})
+            member(db, source_room, actor, FACTS_ROLES)
             selected = set(users) | {actor}
             people = [member(db, source_room, user) for user in selected]
             if not FACTS_ROLES.issubset({p["role"] for p in people}):
@@ -167,7 +167,41 @@ class Service:
                 source = next((d for d in docs if d["id"] == p["source_id"]), None)
                 p["stale"] = not source or source["version"] != p["source_version"]
                 p["source_title"] = source["title"] if source else "Unavailable source"
-            return {"documents": docs, "proposals": proposals}
+            messages = [dict(r) for r in db.execute(
+                "SELECT speaker,text FROM private_messages WHERE room=? AND owner=? ORDER BY id DESC LIMIT 40", (room, actor))][::-1]
+            return {"documents": docs, "proposals": proposals, "messages": messages}
+
+    def private_chat(self, room, actor, text):
+        if not isinstance(text, str) or not 1 <= len(text.strip()) <= 2000:
+            raise Fault(400, "Write a private message of 1–2000 characters")
+        # Messages become owned evidence, so approval references an actual versioned source.
+        self.add_document(room, actor, "Private chat evidence", text.strip())
+        with self.store.tx() as db:
+            m = member(db, room, actor, FACTS_ROLES)
+            db.execute("INSERT INTO private_messages(room,owner,speaker,text,created) VALUES(?,?,?,?,?)",
+                       (room, actor, "you", text.strip(), time.time()))
+            docs = [dict(r) for r in db.execute("SELECT id,title,body,version FROM documents WHERE room=? AND owner=?", (room, actor))]
+            history = [dict(r) for r in db.execute("SELECT speaker,text FROM private_messages WHERE room=? AND owner=? ORDER BY id DESC LIMIT 12", (room, actor))][::-1]
+            r = db.execute("SELECT goal FROM rooms WHERE id=?", (room,)).fetchone()
+            context = {"role": m["role"], "team_goal": r["goal"], "messages": history,
+                       "documents": docs, "requested_facts": [k for k, f in FACTS.items() if f["role"] == m["role"]]}
+            context["team_messages"] = [json.loads(e["payload"])["text"] for e in db.execute(
+                "SELECT payload FROM events WHERE room=? AND kind='message' ORDER BY revision DESC LIMIT 8", (room,))][::-1]
+        result = self._infer(("private", room, actor), self.private_provider.converse, context)
+        if not isinstance(result, dict) or set(result) != {"reply"} or not isinstance(result["reply"], str) or not 1 <= len(result["reply"]) <= 6000:
+            raise Fault(502, "Private assistant returned an invalid reply. Your message is saved privately.")
+        with self.store.tx() as db:
+            member(db, room, actor, FACTS_ROLES)
+            current = [dict(r) for r in db.execute("SELECT id,title,body,version FROM documents WHERE room=? AND owner=?", (room, actor))]
+            if current != docs:
+                raise Fault(409, "Your evidence changed during the reply. Your message is saved; try again after reviewing it.")
+            db.execute("INSERT INTO private_messages(room,owner,speaker,text,created) VALUES(?,?,?,?,?)",
+                       (room, actor, "agent", result["reply"], time.time()))
+        return {"ok": True}
+
+    def team_chat(self, room, actor, text):
+        self.message(room, actor, text)
+        return self.coordinate(room, actor)
 
     def analyze(self, room, actor):
         with self.store.tx() as db:
@@ -263,6 +297,8 @@ class Service:
                        "disclosures": [{"id": c["id"], "key": c["key"], "value": c["value"]} for c in claims],
                        "simulator": json.loads(r["config"]),
                        "eligible_actions": assessment["eligible"]}
+            context["team_messages"] = [json.loads(e["payload"])["text"] for e in db.execute(
+                "SELECT payload FROM events WHERE room=? AND kind='message' ORDER BY revision DESC LIMIT 8", (room,))][::-1]
         # Preserve the application input before handing a separate object to the adapter.
         # This receipt contains only already-shared data, never headers or private inputs.
         context_receipt = json.loads(json.dumps(context))

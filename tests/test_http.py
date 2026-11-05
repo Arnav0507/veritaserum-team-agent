@@ -88,6 +88,19 @@ class HttpTests(unittest.TestCase):
         status, _, result = self.request("/api/rooms/checkout/execute", {"actor": "noor", "plan_id": "x"}, cookie, csrf)
         self.assertEqual(status, 403)
 
+    def test_chat_routes_preserve_private_conversation(self):
+        cookie, csrf = self.login("maya")
+        status, _, result = self.request("/api/rooms", {"source_room": "checkout", "name": "Chat routes",
+            "goal": "Restore checkout", "members": ["maya", "eli", "noor"]}, cookie, csrf)
+        self.assertEqual(status, 200)
+        base = "/api/rooms/" + result["id"]
+        self.assertEqual(self.request(base + "/team-chat", {"text": "Please coordinate"}, cookie, csrf)[2]["status"], "needs_evidence")
+        self.assertEqual(self.request(base + "/private-chat", {"text": "PRIVATE-CHAT-CANARY"}, cookie)[0], 403)
+        self.assertEqual(self.request(base + "/private-chat", {"text": "PRIVATE-CHAT-CANARY"}, cookie, csrf)[0], 200)
+        other, _ = self.login("eli")
+        for route in ("/private", "/state"):
+            self.assertNotIn("PRIVATE-CHAT-CANARY", json.dumps(self.request(base + route, cookie=other)[2]))
+
     def test_changed_browser_identity_is_not_mislabeled(self):
         cookie, csrf = self.login("eli")
         status, _, result = self.request("/api/rooms/checkout/private", cookie=cookie,

@@ -154,6 +154,8 @@ class Handler(BaseHTTPRequestHandler):
                     "coordinate": lambda: s.coordinate(room, actor),
                     "execute": lambda: s.execute(room, actor, required_string(body, "plan_id")),
                     "message": lambda: s.message(room, actor, body.get("text")),
+                    "team-chat": lambda: s.team_chat(room, actor, body.get("text")),
+                    "private-chat": lambda: s.private_chat(room, actor, body.get("text")),
                     "document": lambda: s.update_document(room, actor, required_string(body, "document_id"),
                                                            body.get("body"), body.get("version")),
                     "add-document": lambda: s.add_document(room, actor, body.get("title"), body.get("body")),
