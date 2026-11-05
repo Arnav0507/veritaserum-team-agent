@@ -120,19 +120,22 @@ class ToolPlanningProvider(ChatProvider):
                 "description": "Run all three bounded repairs against an isolated copy of the public checkout simulator; return actual regression checks without committing changes.",
                 "parameters": {"type": "object", "properties": {}, "additionalProperties": False}}}
         first = self._request({"model": self.model, "messages": messages, "max_tokens": 2048,
-                               "tools": [tool], "tool_choice": {"type": "function", "function": {"name": "compare_repairs"}}})
+                               "tools": [tool], "tool_choice": "auto", "parallel_tool_calls": False})
         try:
+            if not first.get("tool_calls"):
+                # Auto tool selection may abstain. No experiment means no actionable proposal.
+                return {"action": None}
             calls = first["tool_calls"]
             if not isinstance(calls, list) or len(calls) != 1:
                 raise ValueError()
             call = calls[0]
             if (call.get("type") != "function" or call["function"]["name"] != "compare_repairs"
                     or json.loads(call["function"]["arguments"]) != {}
-                    or not isinstance(call["id"], str) or len(call["id"]) > 200):
+                    or not isinstance(call["id"], str) or not 1 <= len(call["id"]) <= 64):
                 raise ValueError()
             comparisons = [simulate(context["simulator"], action)[1] for action in ACTIONS]
-            # Retain only the protocol fields, never arbitrary model-supplied metadata.
-            messages.append({"role": "assistant", "content": None, "tool_calls": [call]})
+            # Meta requires the complete assistant message, including its tool-call context.
+            messages.append({**first, "role": "assistant"})
             messages.append({"role": "tool", "tool_call_id": call["id"], "content": json.dumps(comparisons)})
             final = self._request({"model": self.model, "messages": messages, "max_tokens": 2048})
             output = json.loads(final["content"])

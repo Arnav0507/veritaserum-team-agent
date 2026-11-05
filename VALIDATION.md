@@ -6,7 +6,7 @@ Local single-host prototype with synthetic checkout evidence. Tests exercise the
 
 ## Completed evidence
 
-Automated suite after Meta integration: 37 tests passing. JavaScript syntax and Python compilation checks also passed. Tests run with ResourceWarning promoted to an error.
+Automated suite includes 39 tests after the live Meta protocol correction. JavaScript syntax and Python compilation checks also passed. Tests run with ResourceWarning promoted to an error.
 
 - Domain tests: three-person successful repair; private notes and source IDs absent from shared responses/model context; unapproved drafts stay private; cross-owner and cross-room denial; contributor/viewer restrictions; stale source revisions; withdrawal; revocation during inference; shared context changes during inference; racing executions yield one effect; durable restart; malformed/hostile output rejection; failed simulations do not commit; conflicting evidence cannot authorize execution.
 - HTTP tests: three independent authenticated sessions complete the joint workflow; cookie flags; unauthenticated access; CSRF/origin; actor spoofing; private response scope; cache prevention; host rebinding; static-file traversal/allowlist; body limits; logout.
@@ -18,7 +18,11 @@ Automated suite after Meta integration: 37 tests passing. JavaScript syntax and 
 
 ## Limitations
 
-Live Meta validation is in progress. On November 4, all three Muse Spark 1.3 private workers extracted the expected facts from natural prose (approximately 5.50, 6.73, and 5.03 seconds respectively). The initial Muse Wonder coordinator request failed before a plan was published. No end-to-end live success is claimed yet. Safe provider diagnostics and a coordinator-only smoke-test option were added for the next attempt. The reference worker parses explicit fact lines, while the live adapter asks a model to extract the same bounded schema. The policy and simulator are intentionally narrow. A larger company corpus, real connectors, arbitrary tasks, independent penetration testing, performance/load tests, and model extraction accuracy have not been validated. Browser recording tools were unavailable; evidence uses a screenshot and reproducible tests rather than a video.
+Live Meta validation succeeded on November 4. All three Muse Spark 1.3 private workers extracted the expected facts from natural prose (approximately 5.50, 6.73, and 5.03 seconds respectively). Muse Wonder 1.0 completed its tool loop in 7.02 seconds; the resulting operator-authorized repair committed with all four checks passing. The shared snapshot contained none of the private fixture markers. These timings are single-run observations, not latency benchmarks.
+
+The initial coordinator call failed because the adapter forced a named tool choice; Meta supports only `tool_choice: "auto"`. After correcting the request, the coordinator was retried using the previously approved evidence. The successful live path therefore spans the original private-worker calls and the corrected coordinator retry, rather than one uninterrupted fresh run. The runtime abstains if the model chooses not to call the experiment tool.
+
+The reference worker parses explicit fact lines, while the live adapter asks a model to extract the same bounded schema. The policy and simulator are intentionally narrow. A larger company corpus, real connectors, arbitrary tasks, independent penetration testing, performance/load tests, and model extraction accuracy have not been validated. A recorded three-minute video remains a submission deliverable.
 
 ## Regression command
 

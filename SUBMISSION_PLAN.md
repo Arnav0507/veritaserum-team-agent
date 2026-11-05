@@ -56,6 +56,6 @@ Include implementation, tests, CI, README, architecture, validation, and this sc
 
 ## Current remaining external dependencies
 
-- Meta key must be entered privately and a live run must succeed.
+- Live Spark extraction and Wonder tool planning have succeeded; rehearse a clean fresh run before recording.
 - Video must be recorded, uploaded, and linked.
 - The exact submission track/problem statement and submission-form fields must be confirmed.

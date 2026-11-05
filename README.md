@@ -2,7 +2,7 @@
 
 A shared incident agent with private evidence workers and explicit disclosure approval.
 
-**Working local prototype, using synthetic data.** Three people can complete a checkout repair while keeping their raw notes out of the shared context. The default agent is a clearly labeled deterministic reference implementation. Optional live inference adapters are included; no live-provider result is claimed without a configured and tested model.
+**Working local prototype, using synthetic data.** Three people can complete a checkout repair while keeping their raw notes out of the shared context. The default agent is a clearly labeled deterministic reference implementation. The live Meta path has also been exercised successfully: Muse Spark 1.3 private workers and Muse Wonder 1.0 tool planning led to a verified repair. See [validation details and limitations](VALIDATION.md).
 
 ## Run
 

@@ -22,18 +22,25 @@ class ToolPlanningTests(unittest.TestCase):
         with patch.object(p, '_request', side_effect=[self.call(), {'content': '{"action":"disable_fast_checkout"}'}]) as request:
             self.assertEqual(p.shared(context), {'action': 'disable_fast_checkout'})
             self.assertEqual(request.call_count, 2)
+            self.assertEqual(request.call_args_list[0].args[0]['tool_choice'], 'auto')
+            self.assertFalse(request.call_args_list[0].args[0]['parallel_tool_calls'])
             tool_results = json.loads(request.call_args.args[0]['messages'][-1]['content'])
             outcomes = {r['action']: r['passed'] for r in tool_results}
             self.assertEqual(outcomes, {'disable_fast_checkout': True, 'rollback': False, 'restart': False})
             self.assertTrue(INITIAL_CONFIG['fast_checkout'])
 
     def test_model_cannot_expand_tool_or_supply_execution_arguments(self):
-        for call in [self.call('read_private'), self.call(arguments='{"path":"/secret"}'), {'tool_calls': []}]:
+        for call in [self.call('read_private'), self.call(arguments='{"path":"/secret"}')]:
             p = self.provider()
             with patch.object(p, '_request', return_value=call) as request:
                 with self.assertRaises(ProviderError):
                     p.shared({'simulator': INITIAL_CONFIG})
                 self.assertEqual(request.call_count, 1)
+
+    def test_no_tool_call_abstains_without_an_action(self):
+        p = self.provider()
+        with patch.object(p, '_request', return_value={'content': 'I cannot decide.'}):
+            self.assertEqual(p.shared({'simulator': INITIAL_CONFIG}), {'action': None})
 
     def test_live_seed_contains_prose_without_reference_fact_labels(self):
         with tempfile.TemporaryDirectory() as tmp:
