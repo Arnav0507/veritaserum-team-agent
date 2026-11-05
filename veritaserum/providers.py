@@ -1,6 +1,7 @@
 """Stateless inference adapters. Private and shared calls never share conversation state."""
 import json
 import os
+import re
 import urllib.error
 import urllib.request
 from urllib.parse import urlparse
@@ -54,6 +55,22 @@ class ChatProvider:
                 raise ValueError("Oversized response")
             envelope = json.loads(raw)
             return envelope["choices"][0]["message"]
+        except urllib.error.HTTPError as exc:
+            # Expose status and bounded machine-readable fields, never request/response bodies.
+            details = []
+            try:
+                error = json.loads(exc.read(8192)).get("error", {})
+                if isinstance(error, dict):
+                    for field in ("code", "type", "param"):
+                        value = error.get(field)
+                        if isinstance(value, str) and re.fullmatch(r"[a-zA-Z0-9_.-]{1,80}", value):
+                            details.append(f"{field}={value}")
+            except (ValueError, TypeError, AttributeError, OSError):
+                pass
+            finally:
+                exc.close()
+            suffix = "; " + ", ".join(details) if details else ""
+            raise ProviderError(f"Inference provider returned HTTP {exc.code}{suffix}; no result was published") from None
         except (ValueError, KeyError, IndexError, TypeError, OSError, urllib.error.URLError):
             raise ProviderError("Inference failed or returned invalid JSON; no result was published") from None
 

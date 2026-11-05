@@ -18,7 +18,7 @@ Automated suite after Meta integration: 37 tests passing. JavaScript syntax and 
 
 ## Limitations
 
-No provider credentials were configured during this build, so no live external-model success is claimed. The reference worker parses explicit fact lines, while the live adapter asks a model to extract the same bounded schema. The policy and simulator are intentionally narrow. A larger company corpus, real connectors, arbitrary tasks, independent penetration testing, performance/load tests, and model extraction accuracy have not been validated. Browser recording tools were unavailable; evidence uses a screenshot and reproducible tests rather than a video.
+Live Meta validation is in progress. On November 4, all three Muse Spark 1.3 private workers extracted the expected facts from natural prose (approximately 5.50, 6.73, and 5.03 seconds respectively). The initial Muse Wonder coordinator request failed before a plan was published. No end-to-end live success is claimed yet. Safe provider diagnostics and a coordinator-only smoke-test option were added for the next attempt. The reference worker parses explicit fact lines, while the live adapter asks a model to extract the same bounded schema. The policy and simulator are intentionally narrow. A larger company corpus, real connectors, arbitrary tasks, independent penetration testing, performance/load tests, and model extraction accuracy have not been validated. Browser recording tools were unavailable; evidence uses a screenshot and reproducible tests rather than a video.
 
 ## Regression command
 

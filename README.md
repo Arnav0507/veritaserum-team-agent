@@ -67,6 +67,8 @@ python3 -m veritaserum.server --provider meta --prompt-key --port 8788 --db data
 
 Enter the Meta API key at the hidden prompt. Alternatively set `MODEL_API_KEY` securely and omit `--prompt-key`. Defaults are `--private-model muse-spark-1.3` and `--shared-model muse-wonder-1.0`. A newly seeded live database contains prose evidence without reference-mode `FACT` lines. Existing databases are never silently rewritten. The coordinator makes two model requests around one read-only tool call; the later operator-approved execution separately revalidates and commits the result. Tool-call count and token output are bounded. Account model access and credits must be confirmed with a real run.
 
+To use Spark for both roles, add `--shared-model muse-spark-1.3`. Run `python3 scripts/live_smoke.py --port 8788` to exercise the synthetic three-person workflow against the running server; this spends model credits and approves only the known synthetic fixture statements. Add `--coordinate-only` to reuse already-approved evidence. The script never prints source documents, session tokens, or API keys.
+
 Fireworks is an optional fallback. Start it with your account-enabled **Meta** model ID to retain Meta-model usage; the API key is read privately from the terminal and is not stored:
 
 ```sh

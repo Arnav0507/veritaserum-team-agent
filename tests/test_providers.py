@@ -2,6 +2,7 @@ import io
 import json
 import unittest
 import contextlib
+import urllib.error
 from unittest.mock import patch
 from veritaserum.providers import ChatProvider, NoRedirect, ProviderError, from_environment
 
@@ -36,6 +37,18 @@ class ProviderTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 ChatProvider(url, 'model', 'key')
         self.assertIsNone(NoRedirect().redirect_request(None, None, 302, '', {}, 'https://other.example'))
+
+    def test_provider_http_error_reports_safe_diagnostics_without_body(self):
+        body = io.BytesIO(json.dumps({'error': {'code': 'model_not_found', 'param': 'model',
+                                                'message': 'PRIVATE-SECRET'}}).encode())
+        error = urllib.error.HTTPError('https://provider.example', 404, 'PRIVATE-SECRET', {}, body)
+        with patch('urllib.request.build_opener') as opener:
+            opener.return_value.open.side_effect = error
+            with self.assertRaises(ProviderError) as caught:
+                self.provider().shared({})
+            self.assertIn('HTTP 404', str(caught.exception))
+            self.assertIn('model_not_found', str(caught.exception))
+            self.assertNotIn('PRIVATE-SECRET', str(caught.exception))
 
     def test_live_configuration_does_not_silently_fallback(self):
         with patch.dict('os.environ', {'TEST_MODE': 'live'}, clear=True):
